@@ -1,0 +1,574 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+
+<mapper namespace="kr.or.profit.mapper.DietMapper">
+    
+	<!-- chat_now_flag Y로 업데이트 -->
+    <update id="updateChatNowFlagToY" parameterType="String">
+        update chat_profile
+      set chat_now_flag = 'Y'
+      where chat_profile_id = #{memberId}
+    </update>
+    
+    <!-- chat_now_flag N으로 업데이트 -->
+    <update id="updateChatNowFlagToN" parameterType="String">
+        update chat_profile
+      set chat_now_flag = 'N'
+      where chat_profile_id = #{memberId}
+    </update>
+    
+    <!-- 웹소켓 세션용 트레이너 리스트 -->
+    <select id="websocketSessionList" resultType="ChatProfileVO">
+        select chat_profile_id
+      from chat_profile
+      where chat_now_flag = 'Y' and chat_profile_private = 'N'
+    </select>
+    
+	<!-- 선택한 이용권 정보 조회 -->
+	<select id="selectTicketCategory" resultType="egovMap">
+	    SELECT 
+	    TICKET_CATEGORY_SEQ, 
+	    TICKET_NAME, 
+	    TICKET_PRICE, 
+	    TICKET_CNT
+		FROM 
+		TICKET_CATEGORY 
+		WHERE 
+		TICKET_CATEGORY_SEQ = #{ticketCategorySeq}
+	</select>
+	
+	<!-- 이용권 구매내역 추가 -->
+	<insert id="insertBuyTicket">
+		<selectKey order="BEFORE" keyProperty="buyTicketSeq"
+			resultType="String">
+			SELECT NVL(MAX(TO_NUMBER(BUY_TICKET_SEQ)),0)+1 FROM
+			BUY_TICKET
+		</selectKey>
+		<![CDATA[
+			INSERT INTO 
+			BUY_TICKET
+			(
+			BUY_TICKET_SEQ,
+			TICKET_CATEGORY_SEQ, 
+			TICKET_REMAIN, 
+			TICKET_REFUND_FLAG, 
+			IN_USER_ID, IN_DATE, 
+			UP_USER_ID, 
+			UP_DATE
+			) 	 
+			VALUES 
+			(
+			#{buyTicketSeq}, 
+			#{ticketCategorySeq}, 
+			#{ticketRemain}, 
+			'N', 
+			#{inUserId}, 
+			SYSDATE, 
+			#{upUserId}, 
+			SYSDATE
+			)
+		]]>
+	</insert>
+	
+	<!-- 사용가능한 이용권 존재여부 확인 -->
+	<select id="selectAvailableTicket" resultType="int">
+	    SELECT COUNT(*)
+		FROM BUY_TICKET
+		WHERE IN_USER_ID = #{memberId}
+		AND TICKET_AVAIL_FLAG = 'Y'
+	</select>
+	
+	
+	<!-- 상담 프로필 등록 -->
+	<insert id="insertChatProfile">
+		
+		<selectKey resultType="string" keyProperty="fileSeq"
+			order="BEFORE">
+			SELECT
+			NVL(MAX(TO_NUMBER(FILE_SEQ)),0)
+			FROM ATTACH_FILE
+		</selectKey>
+		
+		
+		<![CDATA[
+			INSERT INTO 
+			CHAT_PROFILE
+			(
+			CHAT_PROFILE_SEQ,
+			FILE_SEQ,
+			CHAT_PROFILE_ID,
+			CHAT_PROFILE_INTRO, 
+			CHAT_PROFILE_MEMO, 
+			CHAT_PROFILE_PRIVATE, 
+			IN_USER_ID, 
+			IN_DATE, 
+			UP_USER_ID, 
+			UP_DATE
+			)
+		    VALUES 
+		    (
+		    (SELECT NVL(MAX(TO_NUMBER(CHAT_PROFILE_SEQ)),0)+1 FROM
+			CHAT_PROFILE),
+		    #{fileSeq},
+		    #{chatProfileId},
+		    #{chatProfileIntro},
+		    #{chatProfileMemo},
+		    'N',
+		    #{inUserId},
+		    SYSDATE,
+		    #{upUserId},
+		    SYSDATE
+		    )
+		]]>
+	</insert>
+	
+	<!-- 상담 프로필 등록 여부 -->
+	<select id="selectRegisterProfile" resultType="int">
+	    SELECT COUNT(*) 
+		FROM CHAT_PROFILE
+		WHERE CHAT_PROFILE_ID=#{memberId}
+	</select>
+	
+	<!-- 상담 프로필 목록 조회 -->
+	<select id="selectChatProflieList" parameterType="Criteria" resultType="egovMap">
+	    select rm,CHAT_PROFILE_SEQ, CHAT_PROFILE_ID, MEMBER_NAME,FILE_SEQ, CHAT_PROFILE_INTRO, FILE_PATH, UP_DATE, MEMBER_ID
+		from
+		(
+		select rownum as rm, CHAT_PROFILE_SEQ, CHAT_PROFILE_ID, MEMBER_NAME,FILE_SEQ, CHAT_PROFILE_INTRO, FILE_PATH, UP_DATE, MEMBER_ID
+		from
+		(
+		SELECT CHAT_PROFILE_SEQ, CHAT_PROFILE_ID, MEMBER_NAME, A.FILE_SEQ, CHAT_PROFILE_INTRO, FILE_PATH, A.UP_DATE, B.MEMBER_ID
+		FROM CHAT_PROFILE A
+		LEFT JOIN MEMBER B ON
+		(A.CHAT_PROFILE_ID = B.MEMBER_ID)
+		LEFT JOIN ATTACH_FILE C ON
+		(A.FILE_SEQ = C.FILE_SEQ)
+		WHERE CHAT_PROFILE_PRIVATE = 'N'
+		ORDER BY A.UP_DATE DESC
+		)
+		)
+		where rm between #{rowStart} and #{rowEnd}
+	</select>
+	
+	
+	<insert id="insertProcessFile" parameterType="java.util.Map">
+		<foreach collection="list" item="item" index="index"
+			open="INSERT ALL" close="SELECT * FROM DUAL" separator=" ">
+
+			into
+			attach_file
+			(
+			file_seq,
+			file_detail_seq,
+			file_real_name,
+			file_save_name,
+			file_path,
+			in_user_id,
+			in_date,
+			up_user_id,
+			up_date
+			)
+			values
+
+			(
+			(
+			select
+			NVL(max(to_number(file_seq)),0) + 1
+			from
+			attach_file),
+			#{item.fileDetailSeq},
+			#{item.fileRealName},
+			#{item.fileSaveName},
+			#{item.filePath},
+			#{item.inUserId},
+			sysdate,
+			#{item.upUserId, jdbcType=VARCHAR},
+			sysdate
+			)
+
+
+		</foreach>
+	</insert>
+	
+	<!-- 채팅 프로필 상세 조회 -->
+	<select id="selectChatProfileDetail" resultType="egovMap">
+	    SELECT 
+	    A.CHAT_PROFILE_SEQ, 
+	    A.FILE_SEQ,
+		B.FILE_PATH, 
+		B.FILE_REAL_NAME,
+		A.CHAT_PROFILE_ID, 
+		C.MEMBER_NAME, 
+		A.CHAT_PROFILE_INTRO,
+		A.CHAT_PROFILE_MEMO,
+		A.CHAT_PROFILE_PRIVATE 
+		FROM CHAT_PROFILE A
+		LEFT JOIN ATTACH_FILE B
+		ON (A.FILE_SEQ = B.FILE_SEQ)
+		LEFT JOIN MEMBER C
+		ON (A.CHAT_PROFILE_ID = C.MEMBER_ID)
+		WHERE 
+		CHAT_PROFILE_SEQ=#{chatProfileSeq}
+	</select>
+	
+	<!-- 문의 댓글 목록 조회-->
+	<select id="selectReplyList" resultType="egovMap">
+		SELECT 
+		RN,
+		C.REPLY_SEQ, 
+		C.REPLY_CONTENT, 
+		C.CHAT_PROFILE_SEQ, 
+		C.REPLY_DEL_FLAG, 
+		C.REPLY_PARENT_SEQ, 
+		C.REPLY_DEPTH, 
+		C.REPLY_NEXT_DEPTH ,
+		C.IN_USER_ID, 
+		C.IN_DATE, 
+		C.MEMBER_NICKNAME, 
+		C.FILE_SEQ, 
+		D.FILE_PATH
+        FROM
+        (
+        SELECT 
+        RN,
+        REPLY_SEQ, 
+        REPLY_CONTENT, 
+        CHAT_PROFILE_SEQ, 
+        REPLY_DEL_FLAG, 
+        REPLY_PARENT_SEQ, 
+        REPLY_DEPTH, 
+        LEAD(REPLY_DEPTH) OVER(ORDER BY RN) AS REPLY_NEXT_DEPTH ,
+        IN_USER_ID, 
+        IN_DATE, 
+        MEMBER_NICKNAME, 
+        FILE_SEQ
+		FROM
+		(
+		SELECT 
+		ROWNUM AS RN, 
+		A.CHAT_PROFILE_SEQ, 
+		A.REPLY_SEQ, 
+		A.REPLY_CONTENT, 
+		A.REPLY_DEL_FLAG, 
+		A.REPLY_PARENT_SEQ, 
+		A.REPLY_DEPTH,
+		A.IN_USER_ID, 
+		A.IN_DATE, 
+		B.MEMBER_NICKNAME, 
+		B.FILE_SEQ
+		FROM
+		(
+		SELECT *
+		FROM REPLY
+		WHERE REPLY_DEL_FLAG='N'
+		START WITH REPLY_PARENT_SEQ IS NULL
+		CONNECT BY PRIOR REPLY_SEQ = REPLY_PARENT_SEQ
+		ORDER SIBLINGS BY IN_DATE DESC, REPLY_SEQ
+		) A
+		LEFT JOIN 
+		MEMBER B ON
+		(A.IN_USER_ID=B.MEMBER_ID)
+		)
+		WHERE CHAT_PROFILE_SEQ = #{chatProfileSeq}
+        )
+        C
+        LEFT JOIN 
+        ATTACH_FILE D ON
+        (C.FILE_SEQ = D.FILE_SEQ)
+        ORDER BY RN ASC
+	</select>
+	
+	<!-- 문의 댓글 추가 -->
+	<insert id="insertChatReply">
+		<selectKey order="BEFORE" keyProperty="replySeq"
+			resultType="String">
+			SELECT NVL(MAX(TO_NUMBER(REPLY_SEQ)),0)+1 FROM REPLY
+		</selectKey>
+		<![CDATA[
+		INSERT 
+			INTO 
+		REPLY
+		(
+		REPLY_SEQ, 
+		CHAT_PROFILE_SEQ, 
+		REPLY_CONTENT, 
+		REPLY_DEL_FLAG, 
+		REPLY_DEPTH, 
+		IN_USER_ID,
+		IN_DATE, 
+		UP_USER_ID, 
+		UP_DATE
+		)
+		VALUES 
+		(
+		#{replySeq},
+		#{chatProfileSeq},
+		#{replyContent},
+		'N',
+		'1',
+		#{inUserId},
+		SYSDATE, 
+		#{upUserId}, 
+		SYSDATE
+		)
+		]]>
+	</insert>
+	
+	<!-- 문의 댓글 내 나의 프로필 사진 조회 -->
+	<select id="selectMyProfile" resultType="String">
+		SELECT B.FILE_PATH as
+		file_path
+		FROM MEMBER A
+		LEFT JOIN
+		ATTACH_FILE B ON
+		(A.FILE_SEQ=B.FILE_SEQ)
+		WHERE MEMBER_ID=#{memberId}
+	</select>
+	
+	
+	<!-- 문의 답글 추가 -->
+	<insert id="insertChatRereply">
+		<selectKey order="BEFORE" keyProperty="replySeq"
+			resultType="String">
+			SELECT NVL(MAX(TO_NUMBER(REPLY_SEQ)),0)+1 FROM REPLY
+		</selectKey>
+		<![CDATA[
+		INSERT 
+			INTO 
+		REPLY
+		(
+		REPLY_SEQ, 
+		CHAT_PROFILE_SEQ, 
+		REPLY_CONTENT, 
+		REPLY_DEL_FLAG, 
+		REPLY_PARENT_SEQ,
+		REPLY_DEPTH, 
+		IN_USER_ID,
+		IN_DATE, 
+		UP_USER_ID, 
+		UP_DATE
+		)
+		VALUES 
+		(
+		#{replySeq},
+		#{chatProfileSeq},
+		#{replyContent},
+		'N',
+		#{replyParentSeq},
+		'2',
+		#{inUserId},
+		sysdate, 
+		#{upUserId}, 
+		sysdate
+		)
+		
+		]]>
+	</insert>
+	
+	<!-- 상담 프로필 수정 -->
+	<update id="updateChatProfile" parameterType="chatProfileVO">
+	   UPDATE CHAT_PROFILE
+	   <trim prefix="SET" suffixOverrides=",">
+	      <if test="fileSeq != null">FILE_SEQ = (SELECT NVL(MAX(TO_NUMBER(FILE_SEQ)),0) FROM ATTACH_FILE),</if>
+	       CHAT_PROFILE_INTRO = #{chatProfileIntro},
+	  	   CHAT_PROFILE_MEMO = #{chatProfileMemo}
+	   </trim>
+	   WHERE
+	      CHAT_PROFILE_SEQ = #{chatProfileSeq}
+	      
+	</update>
+	
+	
+	<!-- 상담 프로필 비활성화-->
+	<update id="updatePrivate" parameterType="String">
+	   UPDATE CHAT_PROFILE
+	       SET CHAT_PROFILE_PRIVATE = 'Y'
+	   WHERE
+	      CHAT_PROFILE_SEQ = #{chatProfileSeq}
+	      
+	</update>
+	
+	<!-- 상담 프로필 활성화-->
+	<update id="updatePublic" parameterType="String">
+	   UPDATE CHAT_PROFILE
+	       SET CHAT_PROFILE_PRIVATE = 'N', 
+	           UP_DATE = SYSDATE
+	   WHERE
+	      CHAT_PROFILE_SEQ = #{chatProfileSeq}
+	      
+	</update>
+	
+	<!-- 칼로리 정보 목록-->
+	<select id="selectKcalList" resultType="egovMap">
+	    select rm , num, desc_kor, maker_name, serving_size, round(nutr_cont1) as nutr_cont1, nutr_cont2, nutr_cont3, nutr_cont4, nutr_cont5, nutr_cont6
+		from
+		(
+		select rownum as rm , num, desc_kor, maker_name, serving_size, nutr_cont1, nutr_cont2, nutr_cont3, nutr_cont4, nutr_cont5, nutr_cont6
+		from(
+		select *
+		from food_ntr_irdnt_db
+		where 1=1
+		<if test="searchKeyword != null and searchKeyword != ''">
+		and desc_kor like '%' || #{searchKeyword} || '%'
+		</if>
+        order by num asc
+		)
+		)
+		where rm between #{rowStart} and #{rowEnd}
+	</select>
+	
+	<!-- 칼로리 정보 글 개수 -->
+		<select id="selectKcalCnt" parameterType="Criteria" resultType="int">
+		select count(*)
+		from food_ntr_irdnt_db
+		where 1=1 
+		<if test="searchKeyword != null and searchKeyword != ''">
+		and desc_kor like '%' || #{searchKeyword} || '%'
+		</if>
+		</select>
+		
+	<!-- 칼로리 정보 상세 조회 -->
+		<select id="selectkcalDetail" parameterType="String" resultType="egovMap">
+		    select 
+			num,
+			desc_kor, 
+			maker_name, 
+			serving_size, 
+			nutr_cont2,
+			nutr_cont3,
+			nutr_cont4,
+			nutr_cont5,
+			nutr_cont6,
+			round(nutr_cont2 / per2 * 100) as cont2_rs,
+			round(nutr_cont3 / per3 * 100) as cont3_rs,
+			round(nutr_cont4 / per4 * 100) as cont4_rs,
+			round(nutr_cont5 / per5 * 100) as cont5_rs,
+			round(nutr_cont6 / per6 * 100) as cont6_rs
+			from
+			(
+			select 
+			num,
+			desc_kor, 
+			maker_name, 
+			serving_size, 
+			round(nvl(round(nutr_cont2),0)) as nutr_cont2, 
+			round(nvl(round(nutr_cont3),0)) as nutr_cont3, 
+			round(nvl(round(nutr_cont4),0)) as nutr_cont4, 
+			round(nvl(round(nutr_cont5),0)) as nutr_cont5, 
+			round(nvl(round(nutr_cont6),0)) as nutr_cont6,
+			(select round(avg(nutr_cont2)*2)
+			from food_ntr_irdnt_db
+			) as per2,
+			(select round(avg(nutr_cont3)*2)
+			from food_ntr_irdnt_db
+			) as per3,
+			(select round(avg(nutr_cont4)*2)
+			from food_ntr_irdnt_db
+			) as per4,
+			(select round(avg(nutr_cont5)*2)
+			from food_ntr_irdnt_db
+			) as per5,
+			(select round(avg(nutr_cont6)*2)
+			from food_ntr_irdnt_db
+			) as per6
+			from food_ntr_irdnt_db
+			where num = #{kcalNum}
+			)
+		    
+		</select>
+		
+		<!-- 인기검색어 조회수 증가 -->
+		<update id="updateKcalHit">
+
+			update food_ntr_irdnt_db 
+			SET hit = to_number(hit) + 1
+			where num = #{kcalNum}
+
+		</update>
+		
+		
+		<!-- 인기검색어 조회 -->
+		<select id="selectPopularSearch" resultType="egovMap">
+		    <![CDATA[
+		    select rn, desc_kor
+			from
+			(
+			select rownum as rn, desc_kor
+			from 
+			(
+			select desc_kor
+			from food_ntr_irdnt_db
+			order by hit desc
+			)
+			)
+			where rn <= 7
+			]]>
+		</select>
+		
+		<!-- 채팅 목록 페이징 처리 -->
+		<select id="selectChatListCnt" parameterType="Criteria" resultType="int">
+		    select count(*)
+			from chat_profile
+			where chat_profile_private= 'N'
+		</select>	
+		
+	<!-- 사용가능한 이용권 여부 알아보기 -->
+	<select id="selectMyticketFlag" resultType="int">
+	    select count(*)
+		from buy_ticket
+		where in_user_id = #{memberId}
+		and ticket_avail_flag = 'Y'
+	</select>
+	
+	
+	<!-- 이용권 개수 차감 -->
+	<update id="updateTicketRemain" parameterType="String">
+	   	UPDATE BUY_TICKET
+	   	SET
+	   	TICKET_AVAIL_FLAG =
+		                CASE 
+		                WHEN TICKET_REMAIN = '1' THEN 
+		                     'N' 
+		                ELSE
+		                     'Y'
+		                END,
+		TICKET_REMAIN = TICKET_REMAIN-1
+		WHERE
+		IN_USER_ID = #{memberId} and TICKET_AVAIL_FLAG='Y'
+	      
+	</update>
+	
+	<!-- 채팅 테이블에 정보 추가 -->
+	<insert id="insertChatting">
+		<selectKey order="BEFORE" keyProperty="chattingSeq"
+			resultType="String">
+			SELECT NVL(MAX(TO_NUMBER(CHATTING_SEQ)),0)+1
+			FROM CHATTING
+		</selectKey>
+		<![CDATA[
+		INSERT INTO 
+		CHATTING
+		(
+		CHATTING_SEQ,
+		CHAT_PROFILE_SEQ, 
+		CHATTING_MEMBER_ID,
+		IN_USER_ID, 
+		IN_DATE, 
+		UP_USER_ID, 
+		UP_DATE,
+		CHATTING_ACCOUNT_FLAG
+		) 
+		VALUES 
+		(
+		#{chattingSeq},
+		#{chatProfileSeq},
+		#{chattingMemberId},
+		#{inUserId},
+		sysdate,
+		#{upUserId}, 
+		sysdate, 
+		'N')
+		]]>
+	</insert>
+	
+</mapper>

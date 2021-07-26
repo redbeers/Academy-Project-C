@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.or.profit.mapper.PopularMapper">
+
+	<resultMap id="popular" type="kr.or.profit.vo.PopularVO">
+		<result property="popularSearchSeq" column="popular_search_seq"/>
+		<result property="searchWord" column="search_word"/>
+		<result property="searchCnt" column="search_cnt"/>
+		<result property="inUserId" column="in_user_id"/>
+		<result property="inDate" column="in_date"/>
+		<result property="upUserId" column="up_user_id"/>
+		<result property="upDate" column="up_date"/>
+	</resultMap>
+	
+	<insert id="insertPopular" parameterType="PopularVO">
+
+			INSERT INTO popular_search
+				
+			VALUES (3,2,2,2,2,2,2)
+
+	</insert>
+</mapper>

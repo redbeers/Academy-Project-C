@@ -1,0 +1,655 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="kr.or.profit.mapper.QnaMapper">
+
+	<resultMap id="qnaVO" type="kr.or.profit.vo.QnaVO">
+		<result property="communitySeq" column="COMMUNITY_SEQ"/>
+		<result property="commonSeq" column="COMMON_SEQ"/>
+		<result property="communityCategorySeq" column="COMMUNITY_CATEGORY_SEQ"/>
+		<result property="fileSeq" column="FILE_SEQ"/>
+		<result property="commonTitle" column="COMMON_TITLE"/>
+		<result property="commonContent" column="COMMON_CONTENT"/>
+		<result property="commonHit" column="COMMON_HIT"/>
+		<result property="commonDelFlag" column="COMMON_DEL_FLAG"/>
+		<result property="inUserId" column="IN_USER_ID"/>
+		<result property="inDate" column="IN_DATE"/>
+		<result property="upUserId" column="UP_USER_ID"/>
+		<result property="upDate" column="UP_DATE"/>
+	</resultMap>
+
+<!--  페이징 처리 -->
+	<select id="selectBoardCnt" parameterType="Criteria" resultType="int">
+	    SELECT
+		    COUNT(*)
+		FROM
+		    COMMUNITY A
+
+		WHERE
+		    A.COMMON_DEL_FLAG = 'N'
+		AND
+		    A.COMMON_SEQ = '8'
+		AND
+		    1=1
+	</select>
+	<!-- qna 목록 -->
+	<select id="qnaList" parameterType="Criteria" resultType="egovMap">
+		select
+			tt.rm, tt.community_seq, tt.common_hit, tt.community_category_seq, tt.file_seq, tt.board_good,
+            tt.board_book, tt.good_flag,
+            tt.book_flag, tt.common_title,
+            tt.common_content, tt.in_user_id, TO_CHAR(tt.in_date,'YYYY-MM-DD') in_date, tt.file_path,
+            tt.board_reply, tt.community_category_name
+	    from
+	    	(
+	    	select rownum as rm, tbl.community_seq , tbl.common_hit, tbl.community_category_seq ,
+					tbl.file_seq, tbl.board_good, tbl.board_book, tbl.good_flag,
+					tbl.book_flag, tbl.common_title,
+					tbl.common_content, tbl.in_user_id, tbl.in_date, tbl.file_path,
+					tbl.board_reply, tbl.community_category_name
+			from (
+			    SELECT A.COMMUNITY_SEQ,A.COMMUNITY_CATEGORY_SEQ,A.FILE_SEQ,
+			            (select count(*) from bookgood bk where bookgood_gubun = 'G' and bk.community_seq = a.community_seq) as board_good,
+			            (select count(*) from bookgood bk where bookgood_gubun = 'B' and bk.community_seq = a.community_seq) as board_book,
+			            (select count(*) from bookgood bk where member_id=#{memberId} and bookgood_gubun = 'G' and bk.community_seq = a.community_seq) as good_flag,
+			            (select count(*) from bookgood bk where member_id=#{memberId} and bookgood_gubun = 'B' and bk.community_seq = a.community_seq) as book_flag,
+			          CASE WHEN LENGTH(A.COMMON_TITLE) > 15 THEN SUBSTR(A.COMMON_TITLE, 0, 15) || '...' ELSE A.COMMON_TITLE END AS COMMON_TITLE,
+			          A.COMMON_CONTENT,
+			          A.COMMON_HIT,
+			          A.IN_USER_ID,
+			          A.IN_DATE,
+			          B.FILE_PATH,
+			          NVL(D.BOARD_REPLY,0) AS BOARD_REPLY,
+			          E.COMMUNITY_CATEGORY_NAME
+			    FROM
+			          COMMUNITY A
+			          LEFT JOIN
+			          ATTACH_FILE B ON
+			          (A.FILE_SEQ = B.FILE_SEQ)
+			          LEFT JOIN
+			          (
+			          SELECT COMMUNITY_SEQ,
+			          COUNT(*) AS BOARD_REPLY
+			          FROM REPLY
+			          WHERE REPLY_DEL_FLAG='N'
+			          GROUP BY
+			          COMMUNITY_SEQ
+			          ) D ON
+			          (A.COMMUNITY_SEQ = D.COMMUNITY_SEQ)
+			          LEFT JOIN
+			          COMMUNITY_CATEGORY E ON
+			          (A.COMMUNITY_CATEGORY_SEQ =
+			          E.COMMUNITY_CATEGORY_SEQ)
+			    WHERE
+			          A.COMMON_SEQ = 8 AND A.COMMON_DEL_FLAG = 'N'
+			          and 1=1
+				) tbl
+			) tt
+			where tt.rm between #{rowStart} and #{rowEnd}
+	</select>
+
+<!-- 	글등록 -->
+	<insert id="qnaInsert" parameterType="hashMap">
+		INSERT INTO COMMUNITY
+			(
+				COMMUNITY_SEQ,
+                COMMON_SEQ,
+                COMMON_TITLE,
+                COMMON_CONTENT,
+                COMMON_DEL_FLAG,
+                IN_USER_ID,
+                IN_DATE,
+                UP_USER_ID,
+                UP_DATE	)
+		VALUES
+			(
+				(SELECT
+		            NVL(MAX(TO_NUMBER(COMMUNITY_SEQ)),0) AS COMMUNITY_SEQ
+		        FROM
+		            COMMUNITY)+1,
+				'8',
+				#{commonTitle},
+				#{commonContent},
+				'N',
+				#{memberId},
+				SYSDATE,
+				#{memberId},
+				SYSDATE
+						)
+	</insert>
+<!-- 	상세보기 -->
+	<select id="qnaDetail" resultType="egovMap">
+		SELECT
+			(SELECT
+                COUNT(*)
+            FROM
+                REPLY B
+            WHERE
+                A.COMMUNITY_SEQ = B.COMMUNITY_SEQ
+                ) CNT,
+		    A.COMMUNITY_SEQ,
+		    A.COMMON_SEQ,
+		    A.COMMON_TITLE,
+		    TO_CHAR(A.COMMON_CONTENT) COMMON_CONTENT,
+		    A.COMMON_DEL_FLAG,
+		    A.IN_USER_ID,
+		    TO_CHAR(A.IN_DATE, 'YYYY-MM-DD') IN_DATE,
+		    A.UP_USER_ID,
+		    TO_CHAR(A.UP_DATE, 'YYYY-MM-DD') UP_DATE
+		FROM
+		    COMMUNITY A
+		WHERE
+		    COMMUNITY_SEQ = #{communitySeq}
+	</select>
+
+<!-- 	글수정 -->
+	<update id="qnaUpdate" parameterType="hashMap" >
+		UPDATE
+		    COMMUNITY
+		SET
+		    COMMON_TITLE    = #{commonTitle},
+		    COMMON_CONTENT  = #{commonContent},
+		    UP_DATE         = SYSDATE
+		WHERE
+		    COMMUNITY_SEQ = #{communitySeq}
+	</update>
+
+<!-- 	글 삭제 -->
+	<update id="qnaDelete" parameterType="hashMap" >
+		UPDATE
+		    COMMUNITY
+		SET
+		    COMMON_DEL_FLAG = 'Y'
+		WHERE
+		    COMMUNITY_SEQ = #{communitySeq}
+	</update>
+
+	<!-- 	댓글 등록 -->
+	<insert id="qnaReplyInsert" parameterType="hashMap" >
+		INSERT INTO reply
+			(
+				REPLY_SEQ,
+				COMMUNITY_SEQ,
+				REPLY_CONTENT,
+				REPLY_DEL_FLAG,
+				REPLY_PARENT_SEQ,
+				REPLY_DEPTH,
+				IN_USER_ID,
+				IN_DATE,
+				UP_USER_ID,
+				UP_DATE	)
+		VALUES
+			(
+				(SELECT
+		            NVL(MAX(TO_NUMBER(REPLY_SEQ)),0) AS REPLY_SEQ
+		        FROM
+		            REPLY)+1,
+				#{communitySeq},
+				#{replyContent},
+				'N',
+				'0',
+				'0',
+				#{memberId},
+				SYSDATE,
+				#{memberId},
+				SYSDATE
+						)
+	</insert>
+
+	<!-- 	댓글 목록 -->
+	<select id="qnaDetailReply" resultType="egovMap">
+		SELECT
+		    REPLY_SEQ,
+		    COMMUNITY_SEQ,
+		    REPLY_CONTENT,
+		    REPLY_DEL_FLAG,
+		    REPLY_PARENT_SEQ,
+		    REPLY_DEPTH,
+		    A.IN_USER_ID,
+		    B.FILE_SEQ,
+		    C.FILE_PATH,
+		    TO_CHAR(A.IN_DATE, 'YYYY-MM-DD') IN_DATE
+		FROM
+		    REPLY A
+		    LEFT JOIN MEMBER B ON (A.IN_USER_ID = B.IN_USER_ID)
+		    LEFT JOIN ATTACH_FILE C ON(B.FILE_SEQ = C.FILE_SEQ)
+		WHERE
+		    COMMUNITY_SEQ = #{communitySeq}
+		AND
+			REPLY_DEL_FLAG = 'N'
+		AND
+			REPLY_DEPTH = '0'
+		ORDER by
+            A.IN_DATE DESC
+	</select>
+	<!-- 	댓글 삭제 -->
+	<update id="qnaReplyDelete" parameterType="hashMap" >
+		UPDATE
+		    REPLY
+		SET
+		    REPLY_DEL_FLAG = 'Y'
+		WHERE
+		    REPLY_SEQ = #{replySeq}
+	</update>
+
+<!-- 	로그인한 회원정보 -->
+	<select id="qnaDetailMember" resultType="hashMap">
+		SELECT
+		    A.MEMBER_ID,
+		    B.FILE_PATH,
+		    A.MEMBER_PWD,
+		    A.MEMBER_NAME,
+		    A.MEMBER_NICKNAME,
+		    A.MEMBER_MOBILE,
+		    A.MEMBER_GENDER,
+		    A.MEMBER_HEIGHT,
+		    A.MEMBER_WEIGHT,
+		    A.MEMBER_EMAIL,
+		    A.MEMBER_GUBUN,
+		    A.MEMBER_ROUTE,
+		    A.IN_USER_ID,
+		    A.IN_DATE,
+		    A.UP_USER_ID,
+		    A.UP_DATE
+		FROM
+		    member a, (
+		                SELECT
+		                    A.FILE_PATH
+		                FROM
+		                    ATTACH_FILE A, member B
+		                WHERE
+		                    A.FILE_SEQ = B.FILE_SEQ
+		                AND
+		                   B.member_ID = #{memberId}
+		                ) b
+		WHERE
+		    A.member_id = #{memberId}
+	</select>
+
+
+	<!-- 	대 댓글목록 -->
+	<select id="qnaDetailReplyList" resultType="hashMap">
+		SELECT
+		    REPLY_SEQ,
+		    COMMUNITY_SEQ,
+		    REPLY_CONTENT,
+		    REPLY_DEL_FLAG,
+		    REPLY_PARENT_SEQ,
+		    REPLY_DEPTH,
+		    A.IN_USER_ID,
+		    B.FILE_SEQ,
+		    C.FILE_PATH,
+		    TO_CHAR(A.IN_DATE, 'YYYY-MM-DD') IN_DATE
+		FROM
+		    REPLY A
+		    LEFT JOIN MEMBER B ON (A.IN_USER_ID = B.IN_USER_ID)
+		    LEFT JOIN ATTACH_FILE C ON(B.FILE_SEQ = C.FILE_SEQ)
+		WHERE
+			COMMUNITY_SEQ = #{communitySeq}
+		AND
+			REPLY_DEPTH = '1'
+		AND
+			REPLY_DEL_FLAG = 'N'
+		ORDER by
+            A.IN_DATE DESC
+
+	</select>
+
+	<!-- 	대 댓 글등록 -->
+	<insert id="qnaReplyAdd" parameterType="hashMap">
+		INSERT INTO REPLY
+			(
+				REPLY_SEQ,
+				COMMUNITY_SEQ,
+				REPLY_CONTENT,
+				REPLY_DEL_FLAG,
+				REPLY_PARENT_SEQ,
+				REPLY_DEPTH,
+				IN_USER_ID,
+				IN_DATE,
+				UP_USER_ID,
+				UP_DATE	)
+		VALUES
+			(
+				(SELECT
+		            NVL(MAX(TO_NUMBER(REPLY_SEQ)),0) AS REPLY_SEQ
+		        FROM
+		            REPLY)+1,
+				#{communitySeq},
+				#{replyContent},
+				'N',
+				#{replySeq},
+				'1',
+				#{memberId},
+				SYSDATE,
+				#{memberId},
+				SYSDATE
+						)
+	</insert>
+	
+	
+	<select id="selectAdminQnaList" parameterType="Criteria" resultType="egovMap">
+	    select *
+		from
+		(
+		select rownum as rn, d.community_seq, d.file_seq, d.common_title, d.in_user_id, d.in_date, nvl(cnt,0) as cnt
+		from
+		(
+		select community_seq, nvl(file_seq,'N') as file_seq, 
+		CASE WHEN LENGTH(COMMON_TITLE) > 20 THEN SUBSTR(COMMON_TITLE, 0, 20) || '...' ELSE COMMON_TITLE END AS COMMON_TITLE, 
+		in_user_id, to_char(in_date,'yyyy-mm-dd') as in_date
+		from(
+		select *
+		from 
+		community
+		where common_seq = '8'
+		and
+		common_del_flag = 'N'
+		order by in_date desc
+		)
+		) d,
+		(
+		select community_seq, common_title, in_user_id, in_date,count(reply_seq) as cnt
+		from
+		(
+		select a.community_seq, a.common_title, a.in_user_id, a.in_date, b.reply_seq, b.in_user_id as in_user_id2, c.member_gubun 
+		from community a, reply b, member c
+		where a.community_seq = b.community_seq(+)
+		and a.common_seq = '8'
+		and a.common_del_flag = 'N'
+		and b.reply_del_flag = 'N'
+		and b.in_user_id = c.member_id(+)
+		)
+		where member_gubun = 'A'
+		group by community_seq, common_title, in_user_id, in_date
+		order by in_date desc
+		) e
+		where d.community_seq = e.community_seq(+)
+		
+		)
+		where rn between #{rowStart} and #{rowEnd}
+	    
+	</select>
+	
+	
+	<select id="selectUserQnaList" parameterType="Criteria" resultType="egovMap">
+	    select *
+		from
+		(
+		select rownum as rn, d.community_seq, d.file_seq, d.common_title, d.in_user_id, d.in_date, nvl(cnt,0) as cnt
+		from
+		(
+		select community_seq, nvl(file_seq,'N') as file_seq, 
+		CASE WHEN LENGTH(COMMON_TITLE) > 20 THEN SUBSTR(COMMON_TITLE, 0, 20) || '...' ELSE COMMON_TITLE END AS COMMON_TITLE, 
+		in_user_id, to_char(in_date,'yyyy-mm-dd') as in_date
+		from 
+		community
+		where common_seq = '8'
+		and
+		common_del_flag = 'N'
+		order by in_date desc
+		) d,
+		(
+		select community_seq, common_title, in_user_id, in_date,count(reply_seq) as cnt
+		from
+		(
+		select a.community_seq, a.common_title, a.in_user_id, a.in_date, b.reply_seq, b.in_user_id as in_user_id2, c.member_gubun 
+		from community a, reply b, member c
+		where a.community_seq = b.community_seq(+)
+		and a.common_seq = '8'
+		and a.common_del_flag = 'N'
+		and b.reply_del_flag = 'N'
+		and b.in_user_id = c.member_id(+)
+		)
+		where member_gubun = 'A'
+		group by community_seq, common_title, in_user_id, in_date
+		order by in_date desc
+		) e
+		where d.community_seq = e.community_seq(+)
+		and d.in_user_id = #{memberId}
+		
+		)
+		where rn between #{rowStart} and #{rowEnd}
+		
+		
+	    
+	</select>
+	
+	<!--  페이징 처리 -->
+	<select id="selectAdminQnaCnt" parameterType="Criteria" resultType="int">
+	    SELECT
+		    COUNT(*)
+		FROM
+		    COMMUNITY A
+
+		WHERE
+		    A.COMMON_DEL_FLAG = 'N'
+		AND
+		    A.COMMON_SEQ = '8'
+	</select>
+	
+	<select id="selectUserQnaCnt" parameterType="Criteria" resultType="int">
+	    SELECT
+		    COUNT(*)
+		FROM
+		    COMMUNITY A
+
+		WHERE
+		    A.COMMON_DEL_FLAG = 'N'
+		AND
+		    A.COMMON_SEQ = '8'
+		and in_user_id = #{memberId}
+	</select>
+	
+	<resultMap id="test" type="HashMap" >
+		<result property="commonContent" column="COMMON_CONTENT" jdbcType="CLOB" javaType="java.lang.String" />
+		<result property="commonTitle" column="COMMON_TITLE" />
+		<result property="communitySeq" column="COMMUNITY_SEQ" />
+		
+		<result property="inUserId" column="IN_USER_ID" />
+		<result property="inDate" column="IN_DATE" />
+	</resultMap>
+	
+	<!-- 자유게시판 상세글 조회 -->
+	<select id="selectQnaDetail" parameterType="CommunityVO" resultMap="test">
+		<![CDATA[
+		select community_seq, common_title, in_user_id, to_char(in_date,'yyyy-mm-dd hh:mm:ss') as in_date, common_content
+		from community
+		where community_seq = #{communitySeq}
+		]]>
+	</select>
+	
+	
+	<!-- 나의 프로필 사진 조회 -->
+	<select id="selectQnaMyProfile" resultType="String">
+		SELECT B.FILE_PATH as
+		file_path
+		FROM MEMBER A
+		LEFT JOIN
+		ATTACH_FILE B ON
+		(A.FILE_SEQ=B.FILE_SEQ)
+		WHERE MEMBER_ID=#{memberId}
+	</select>
+	
+	
+	<!--  댓글 목록 조회-->
+	<select id="selectQnaReplyList" resultType="egovMap">
+		SELECT 
+		RN,
+		C.REPLY_SEQ, 
+		C.REPLY_CONTENT, 
+		C.COMMUNITY_SEQ, 
+		C.REPLY_DEL_FLAG, 
+		C.REPLY_PARENT_SEQ, 
+		C.REPLY_DEPTH, 
+		C.REPLY_NEXT_DEPTH ,
+		C.IN_USER_ID, 
+		C.IN_DATE, 
+		C.MEMBER_NICKNAME, 
+		C.MEMBER_GUBUN,
+		C.FILE_SEQ, 
+		D.FILE_PATH
+        FROM
+        (
+        SELECT 
+        RN,
+        REPLY_SEQ, 
+        REPLY_CONTENT, 
+        COMMUNITY_SEQ, 
+        REPLY_DEL_FLAG, 
+        REPLY_PARENT_SEQ, 
+        REPLY_DEPTH, 
+        LEAD(REPLY_DEPTH) OVER(ORDER BY RN) AS REPLY_NEXT_DEPTH ,
+        IN_USER_ID, 
+        IN_DATE, 
+        MEMBER_NICKNAME, 
+        MEMBER_GUBUN,
+        FILE_SEQ
+		FROM
+		(
+		SELECT 
+		ROWNUM AS RN, 
+		A.COMMUNITY_SEQ, 
+		A.REPLY_SEQ, 
+		A.REPLY_CONTENT, 
+		A.REPLY_DEL_FLAG, 
+		A.REPLY_PARENT_SEQ, 
+		A.REPLY_DEPTH,
+		A.IN_USER_ID, 
+		A.IN_DATE, 
+		B.MEMBER_NICKNAME, 
+        B.MEMBER_GUBUN,
+		B.FILE_SEQ
+		FROM
+		(
+		SELECT *
+		FROM REPLY
+		WHERE REPLY_DEL_FLAG='N'
+		START WITH REPLY_PARENT_SEQ IS NULL
+		CONNECT BY PRIOR REPLY_SEQ = REPLY_PARENT_SEQ
+		ORDER SIBLINGS BY IN_DATE DESC, REPLY_SEQ
+		) A
+		LEFT JOIN 
+		MEMBER B ON
+		(A.IN_USER_ID=B.MEMBER_ID)
+		)
+		WHERE COMMUNITY_SEQ = #{communitySeq}
+        )
+        C
+        LEFT JOIN 
+        ATTACH_FILE D ON
+        (C.FILE_SEQ = D.FILE_SEQ)
+        ORDER BY RN ASC
+	</select>
+	
+	<select id="selectQnaReplyCnt" resultType="egovMap">
+	    SELECT 
+		count(*) as cnt
+		FROM
+		(
+		SELECT *
+		FROM REPLY
+		WHERE REPLY_DEL_FLAG='N'
+		START WITH REPLY_PARENT_SEQ IS NULL
+		CONNECT BY PRIOR REPLY_SEQ = REPLY_PARENT_SEQ
+		ORDER SIBLINGS BY IN_DATE DESC, REPLY_SEQ
+		) A
+		LEFT JOIN 
+		MEMBER B ON
+		(A.IN_USER_ID=B.MEMBER_ID)
+		WHERE COMMUNITY_SEQ = #{communitySeq}
+	</select>
+	
+	
+	<insert id="insertQnaReply">
+	    <selectKey order="BEFORE" keyProperty="replySeq"
+			resultType="String">
+			SELECT NVL(MAX(TO_NUMBER(REPLY_SEQ)),0)+1 FROM REPLY
+		</selectKey>
+		<![CDATA[
+		INSERT 
+			INTO 
+		reply
+		(
+		reply_seq, 
+		community_seq, 
+		reply_content, 
+		reply_del_flag, 
+		reply_depth, 
+		in_user_id,
+		in_date, 
+		up_user_id, 
+		up_date
+		)
+		VALUES 
+		(
+		#{replySeq},
+		#{communitySeq},
+		#{replyContent},
+		'N',
+		'1',
+		#{inUserId},
+		sysdate, 
+		#{upUserId}, 
+		sysdate
+		)
+		]]>
+	</insert>
+	
+	<!-- 자유게시판 답글 추가 -->
+	<insert id="insertQnaRereply">
+		<selectKey order="BEFORE" keyProperty="replySeq"
+			resultType="String">
+			SELECT NVL(MAX(TO_NUMBER(REPLY_SEQ)),0)+1 FROM REPLY
+		</selectKey>
+		<![CDATA[
+		INSERT 
+			INTO 
+		reply
+		(
+		reply_seq, 
+		community_seq, 
+		reply_content, 
+		reply_del_flag, 
+		reply_parent_seq,
+		reply_depth, 
+		in_user_id,
+		in_date, 
+		up_user_id, 
+		up_date
+		)
+		VALUES 
+		(
+		#{replySeq},
+		#{communitySeq},
+		#{replyContent},
+		'N',
+		#{replyParentSeq},
+		'2',
+		#{inUserId},
+		sysdate, 
+		#{upUserId}, 
+		sysdate
+		)
+		
+		]]>
+	</insert>
+	
+	<!-- 자유게시판 댓글 삭제 -->
+	<update id="deleteQnaReply" parameterType="String">
+        UPDATE REPLY B
+		SET    B.REPLY_DEL_FLAG = 'Y'
+		WHERE  B.REPLY_SEQ IN(
+		    SELECT A.REPLY_SEQ
+		    FROM
+		    (
+		        SELECT *
+		        FROM REPLY
+		        START WITH REPLY_PARENT_SEQ IS NULL
+		        CONNECT BY PRIOR REPLY_SEQ = REPLY_PARENT_SEQ
+		        ORDER SIBLINGS BY REPLY_SEQ
+		    ) A
+		    WHERE (A.REPLY_SEQ = #{replySeq} OR REPLY_PARENT_SEQ = #{replySeq})
+		)
+
+	</update>
+</mapper>

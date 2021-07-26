@@ -1,0 +1,574 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+
+<mapper namespace="kr.or.profit.mapper.AdminLessonMapper">
+
+    <select id="selectAdminLessonList" resultType="egovMap" parameterType="Criteria">
+       
+    	select rm, lesson_seq, lesson_title, lesson_private_flag,
+		lesson_category_name, member_id, member_name, member_gubun,
+		 in_date
+		from
+		(
+		select rownum as rm, lesson_seq, lesson_title, lesson_private_flag,
+		lesson_category_name, member_id, member_name, member_gubun, in_date
+		from
+		(
+		select a.lesson_seq,
+               case when length(a.lesson_title) > 20 then substr(a.lesson_title, 0, 15) || '...' else a.lesson_title end as lesson_title,
+               a.lesson_private_flag,
+               b.lesson_category_name,
+               c.member_id,
+               c.member_name,
+               c.member_gubun,
+               a.in_date
+            from lesson a
+            left join lesson_category b on
+            (a.lesson_category_seq = b.lesson_category_seq)
+            left join member c on
+            (a.in_user_id = c.member_id)
+		where 1=1 
+		<if test="selStatus == '활성화'">
+		    and a.lesson_private_flag = 'N'
+		</if>
+		<if test="selStatus == '비활성화'">
+		    and a.lesson_private_flag = 'Y'
+		</if>
+		<if test="selDate != null and selDate !=''">
+		    and to_char(a.in_date, 'YYYYMMDD') = #{selDate}
+		</if>
+		<if test="selIdentity == '아이디'">
+		    and a.in_user_id like '%' || #{searchKeyword} || '%' 
+		</if>
+		<if test="selIdentity == '이름'">
+		    and c.member_name like '%' || #{searchKeyword} || '%' 
+		</if>
+		<if test="selIdentity == '전체'">
+		    and (c.member_name like '%' || #{searchKeyword} || '%' or
+		    a.in_user_id like '%' || #{searchKeyword} || '%'
+		    )
+		</if>
+		)
+		)
+		where rm between #{rowStart} and #{rowEnd}
+		order by in_date desc
+		
+    </select>
+    
+	<select id="selectAdminLessonCnt" parameterType="Criteria" resultType="int">
+	  	select 
+		count(*)
+		from
+		(
+		select a.lesson_seq,
+               a.lesson_title,
+               a.lesson_private_flag,
+               b.lesson_category_name,
+               c.member_id,
+               c.member_name,
+               c.member_gubun,
+               a.in_date
+              
+            from lesson a
+            left join lesson_category b on
+            (a.lesson_category_seq = b.lesson_category_seq)
+            left join member c on
+            (a.in_user_id = c.member_id)
+           
+		where 1=1 
+		<if test="selStatus == '활성화'">
+		    and a.Lesson_Private_Flag = 'N'
+		</if>
+		<if test="selStatus == '비활성화'">
+		    and a.Lesson_Private_Flag = 'Y'
+		</if>
+		<if test="selDate != null and selDate !=''">
+		    and to_char(a.in_date, 'YYYYMMDD') = #{selDate}
+		</if>
+		<if test="selIdentity == '아이디'">
+		    and a.in_user_id like '%' || #{searchKeyword} || '%' 
+		</if>
+		<if test="selIdentity == '이름'">
+		    and c.member_name like '%' || #{searchKeyword} || '%' 
+		</if>
+		<if test="selIdentity == '전체'">
+		    and (c.member_name like '%' || #{searchKeyword} || '%' or
+		    a.in_user_id like '%' || #{searchKeyword} || '%'
+		    )
+		</if>
+		)
+		order by in_date desc
+	    
+	</select>
+	
+	
+	<!-- 강의 수정하기 -->
+    <update id="updAdminLesson" parameterType="LessonVO">
+			UPDATE LESSON
+			SET LESSON_PRIVATE_FLAG = #{lessonPrivateFlag},
+				UP_USER_ID = #{memberId},
+                UP_DATE = SYSDATE
+            WHERE LESSON_SEQ = #{lessonSeq}
+	</update>
+	
+<!--     <select id="selectList" resultType="egovMap" parameterType="String"> -->
+<!--     	select *  -->
+<!--     	from buy_lesson  -->
+<!--     	where lesson_seq= #{lessonSeq}  -->
+<!--     	and lesson_refund_flag = 'N' -->
+<!--     </select> -->
+    
+    
+<!--     관리자 비활성화 환불 -->
+    <update id="updAdminRefund" parameterType="BuyLessonVO">
+            update buy_lesson
+			set lesson_refund_flag = 'Y',
+			    up_user_id= #{memberId},
+			    up_date= sysdate
+			where lesson_seq =  #{lessonSeq}
+			and lesson_refund_flag = 'N'
+	</update>
+    
+<!--     관리자가보는 온라인클래스 결제/환불 리스트 -->
+    <select id="adminLessonPayList" resultType="egovMap" parameterType="Criteria">
+        
+    	select rm, buy_lesson_seq,lesson_seq, lesson_refund_flag, in_user_id,
+		in_date, member_id, member_name, member_gubun, lesson_title, lesson_category_name,status
+		from
+		(
+		select rownum as rm, buy_lesson_seq,lesson_seq, lesson_refund_flag, in_user_id,
+		in_date, member_id, member_name, member_gubun, lesson_title, lesson_category_name,status
+		from
+		(
+		select a.buy_lesson_seq,
+               a.lesson_seq,
+               a.lesson_refund_flag,
+               a.in_user_id,
+               a.in_date, 
+               b.member_id,
+               b.member_name,
+               b.member_gubun,
+                case when length(c.lesson_title) > 15 then substr(c.lesson_title, 0, 15) || '...' else c.lesson_title end as lesson_title,
+               d.lesson_category_name,
+               (case
+                when a.lesson_refund_flag = 'Y' then '환불'
+                when a.lesson_refund_flag = 'N' then '결제'
+                END ) status
+            from buy_lesson a
+            left join member b on
+            (a.in_user_id = b. member_id)
+            left join lesson c on
+            (a.lesson_seq = c.lesson_seq)
+            left join lesson_category d on
+            (c.lesson_category_seq = d.lesson_category_seq)
+		where 1=1 
+		<if test="selStatus == '환불'">
+		    and a.lesson_refund_flag = 'Y'
+		</if>
+		<if test="selStatus == '결제'">
+		    and a.lesson_refund_flag = 'N'
+		</if>
+		<if test="selDate != null and selDate !=''">
+		    and to_char(a.in_date, 'YYYYMMDD') = #{selDate}
+		</if>
+		<if test="selIdentity == '아이디'">
+		    and a.in_user_id like '%' || #{searchKeyword} || '%' 
+		</if>
+		<if test="selIdentity == '이름'">
+		    and  b.member_name like '%' || #{searchKeyword} || '%' 
+		</if>
+		<if test="selIdentity == '전체'">
+		    and ( b.member_name like '%' || #{searchKeyword} || '%' or
+		    a.in_user_id like '%' || #{searchKeyword} || '%'
+		    )
+		</if>
+		)
+		)
+		where rm between #{rowStart} and #{rowEnd}
+		order by in_date desc
+		
+    </select>
+    
+<!--     온라인클래스 결제/환불내역 전체 글개수 -->
+    <select id="adminLessonPayListCnt" parameterType="Criteria" resultType="int">
+	  	select 
+		count(*)
+		from
+		(
+		select  a.buy_lesson_seq,
+               a.lesson_seq,
+               a.lesson_refund_flag,
+               a.in_user_id,
+               a.in_date, 
+               b.member_id,
+               b.member_name,
+               b.member_gubun,
+               case when length(c.lesson_title) > 15 then substr(c.lesson_title, 0, 15) || '...' else c.lesson_title end as lesson_title,
+               d.lesson_category_name,
+               (case
+                when a.lesson_refund_flag = 'Y' then '환불'
+                when a.lesson_refund_flag = 'N' then '결제'
+                END ) status
+            from buy_lesson a
+            left join member b on
+            (a.in_user_id = b. member_id)
+            left join lesson c on
+            (a.lesson_seq = c.lesson_seq)
+            left join lesson_category d on
+            (c.lesson_category_seq = d.lesson_category_seq)
+		where 1=1 
+		<if test="selStatus == '환불'">
+		    and a.lesson_refund_flag = 'Y'
+		</if>
+		<if test="selStatus == '결제'">
+		    and a.lesson_refund_flag = 'N'
+		</if>
+		<if test="selDate != null and selDate !=''">
+		    and to_char(a.in_date, 'YYYYMMDD') = #{selDate}
+		</if>
+		<if test="selIdentity == '아이디'">
+		    and a.in_user_id like '%' || #{searchKeyword} || '%' 
+		</if>
+		<if test="selIdentity == '이름'">
+		    and  b.member_name like '%' || #{searchKeyword} || '%' 
+		</if>
+		<if test="selIdentity == '전체'">
+		    and ( b.member_name like '%' || #{searchKeyword} || '%' or
+		    a.in_user_id like '%' || #{searchKeyword} || '%'
+		    )
+		</if>
+		)
+		order by in_date desc
+	    
+	</select>
+    
+    <select id="lessonPopularDays" resultType="egovMap">
+        select *
+		from
+		(
+		select rownum as rn, lesson_seq, lesson_title, cnt, 
+		(
+		select to_char(sysdate,'yyyy-mm-dd') 
+		from dual
+		)as today_date,
+		(
+		select to_char(sysdate-6,'yyyy-mm-dd') 
+		from dual
+		)as week_date
+		from
+		(
+		select a.lesson_seq, 
+		case
+		when
+		length(b.lesson_title) > 14 then substr(b.lesson_title, 0, 14) ||
+		'...'
+		else b.lesson_title
+		end as lesson_title,
+		count(*) as cnt
+		from buy_lesson a, lesson b
+		where a.lesson_refund_flag = 'N'
+		and a.lesson_seq = b.lesson_seq(+)
+		and a.in_date between sysdate-7
+		                   AND sysdate
+		group by  a.lesson_seq, b.lesson_title
+		order by cnt desc
+		) 
+		)
+		where rn &lt; 9
+        
+    </select>
+    
+    <select id="lessonPopularWeeks" resultType="egovMap">
+      select *
+		from
+		(
+		select rownum as rn, lesson_seq, lesson_title, cnt
+		from
+		(
+		select a.lesson_seq, 
+		case
+		when
+		length(b.lesson_title) > 14 then substr(b.lesson_title, 0, 14) ||
+		'...'
+		else b.lesson_title
+		end as lesson_title,
+		count(*) as cnt
+		from buy_lesson a, lesson b
+		where a.lesson_refund_flag = 'N'
+		and a.lesson_seq = b.lesson_seq(+)
+		and a.in_date between sysdate-30
+		                   AND sysdate
+		group by  a.lesson_seq, b.lesson_title
+		order by cnt desc
+		) 
+		)
+		where rn &lt; 9  
+        
+    </select>
+    
+    <select id="lessonPopularMonths" resultType="egovMap">
+        select *
+			from
+			(
+			select rownum as rn, lesson_seq, lesson_title, cnt
+			from
+			(
+			select a.lesson_seq,
+			case
+			when
+			length(b.lesson_title) > 14 then substr(b.lesson_title, 0, 14) ||
+			'...'
+			else b.lesson_title
+			end as lesson_title, 
+			count(*) as cnt
+			from buy_lesson a, lesson b
+			where a.lesson_refund_flag = 'N'
+			and a.lesson_seq = b.lesson_seq(+)
+			and a.in_date between add_months(sysdate,-6)
+			                   AND sysdate
+			group by  a.lesson_seq, b.lesson_title
+			order by cnt desc
+			) 
+			)
+			where rn &lt; 9
+        
+    </select>
+    	
+
+	
+	<select id="newTop5" resultType="egovMap">
+		select *
+		from
+		(
+		select rownum as rn, lesson_seq, lesson_title,cnt
+		from
+		(
+		select a.lesson_seq, 
+		CASE
+		WHEN
+		LENGTH(b.LESSON_TITLE) > 10 THEN SUBSTR(b.LESSON_TITLE, 0, 10) ||
+		'...'
+		ELSE b.LESSON_TITLE
+		END AS LESSON_TITLE,
+		count(*) as cnt
+		from buy_lesson a, lesson b
+		where b.in_date between sysdate-7 and sysdate
+		and a.lesson_seq = b.lesson_seq(+)
+		and lesson_refund_flag='N'
+		group by a.lesson_seq,b.lesson_title
+		order by cnt desc
+		)
+		)
+		where rn between 1 and 5	    
+	</select>
+	
+	<select id="newRegister" resultType="egovMap">
+	    
+	    select
+		(
+		select count(*)
+		from lesson a, lesson_category b
+		where in_date between sysdate-7 and sysdate
+		and a.lesson_category_seq = b.lesson_category_seq
+		and a.lesson_category_seq='1'
+		) as 헬스,
+		(
+		select count(*)
+		from lesson a, lesson_category b
+		where in_date between sysdate-7 and sysdate
+		and a.lesson_category_seq = b.lesson_category_seq
+		and a.lesson_category_seq='2'
+		) as 요가,
+		(
+		select count(*)
+		from lesson a, lesson_category b
+		where in_date between sysdate-7 and sysdate
+		and a.lesson_category_seq = b.lesson_category_seq
+		and a.lesson_category_seq='3'
+		) as 필라테스,
+		(
+		select count(*)
+		from lesson a, lesson_category b
+		where in_date between sysdate-7 and sysdate
+		and a.lesson_category_seq = b.lesson_category_seq
+		and a.lesson_category_seq='4'
+		) as 맨몸운동
+		from dual
+	    
+	</select>
+	
+	<select id="newRegisterCount" resultType="egovMap">
+	    
+	   select 
+		(
+		select to_char(sysdate,'mm/dd')
+		from dual
+		) as day1,
+		(
+		select count(*)
+		from lesson
+		where to_char(in_date,'yyyymmdd') = to_char(sysdate, 'yyyymmdd')
+		) as cnt1,
+		(
+		select to_char(sysdate-1,'mm/dd')
+		from dual
+		) as day2,
+		(
+		select count(*)
+		from lesson
+		where to_char(in_date,'yyyymmdd') = to_char(sysdate-1, 'yyyymmdd')
+		) as cnt2,
+		(
+		select to_char(sysdate-2,'mm/dd')
+		from dual
+		) as day3,
+		(
+		select count(*)
+		from lesson
+		where to_char(in_date,'yyyymmdd') = to_char(sysdate-2, 'yyyymmdd')
+		) as cnt3,
+		(
+		select to_char(sysdate-3,'mm/dd')
+		from dual
+		) as day4,
+		(
+		select count(*)
+		from lesson
+		where to_char(in_date,'yyyymmdd') = to_char(sysdate-3, 'yyyymmdd')
+		) as cnt4,
+		(
+		select to_char(sysdate-4,'mm/dd')
+		from dual
+		) as day5,
+		(
+		select count(*)
+		from lesson
+		where to_char(in_date,'yyyymmdd') = to_char(sysdate-4, 'yyyymmdd')
+		) as cnt5,
+		(
+		select to_char(sysdate-5,'mm/dd')
+		from dual
+		) as day6,
+		(
+		select count(*)
+		from lesson
+		where to_char(in_date,'yyyymmdd') = to_char(sysdate-5, 'yyyymmdd')
+		) as cnt6,
+		(
+		select to_char(sysdate-6,'mm/dd')
+		from dual
+		) as day7,
+		(
+		select count(*)
+		from lesson
+		where to_char(in_date,'yyyymmdd') = to_char(sysdate-6, 'yyyymmdd')
+		) as cnt7
+		from dual
+	    
+	</select>
+	
+	<select id="bookmarkRank" resultType="egovMap">
+	    select *
+		from
+		(
+		select rownum as rn, lesson_seq, lesson_title, cnt
+		from
+		(
+		select a.lesson_seq, 
+		CASE
+		WHEN
+		LENGTH(b.LESSON_TITLE) > 10 THEN SUBSTR(b.LESSON_TITLE, 0, 10) ||
+		'...'
+		ELSE b.LESSON_TITLE
+		END AS LESSON_TITLE,
+		count(*) as cnt
+		from bookgood a, lesson b
+		where a.lesson_seq is not null
+		and a.bookgood_gubun = 'B'
+		and a.lesson_seq = b.lesson_seq(+)
+		group by a.lesson_seq,b.lesson_title
+		order by cnt desc
+		)
+		)
+		where rn between 1 and 5
+	</select>
+	
+	<select id="goodRank" resultType="egovMap" >
+	    select *
+		from
+		(
+		select rownum as rn, lesson_seq, lesson_title, cnt
+		from
+		(
+		select a.lesson_seq, 
+		CASE
+		WHEN
+		LENGTH(b.LESSON_TITLE) > 10 THEN SUBSTR(b.LESSON_TITLE, 0, 10) ||
+		'...'
+		ELSE b.LESSON_TITLE
+		END AS LESSON_TITLE,
+		count(*) as cnt
+		from bookgood a, lesson b
+		where a.lesson_seq is not null
+		and a.bookgood_gubun = 'G'
+		and a.lesson_seq = b.lesson_seq(+)
+		group by a.lesson_seq,b.lesson_title
+		order by cnt desc
+		)
+		)
+		where rn between 1 and 5
+	    
+	</select>
+	
+	<select id="viewRank" resultType="egovMap" >
+	    select *
+		from
+		(
+		select rownum as rn, lesson_seq, lesson_title,lesson_hit
+		from
+		(
+		select lesson_seq, 
+		CASE
+		WHEN
+		LENGTH(LESSON_TITLE) > 10 THEN SUBSTR(LESSON_TITLE, 0, 10) ||
+		'...'
+		ELSE LESSON_TITLE
+		END AS LESSON_TITLE,
+        lesson_hit
+		from  lesson 
+		where lesson_seq is not null
+        and lesson_private_flag = 'N'
+
+		order by to_number(lesson_hit) desc
+		)
+		)
+		where rn between 1 and 5
+	    
+	</select>
+	
+	<select id="lessonRank" resultType="egovMap">
+	    
+	    select *
+		from
+		(
+		select rownum as rn, lesson_seq, 
+		CASE
+		WHEN
+		LENGTH(LESSON_TITLE) > 10 THEN SUBSTR(LESSON_TITLE, 0, 10) ||
+		'...'
+		ELSE LESSON_TITLE
+		END AS LESSON_TITLE, 
+		cnt
+		from
+		(
+		select a.lesson_seq, b.lesson_title, count(*) as cnt
+		from buy_lesson a, lesson b
+		where a.lesson_refund_flag = 'N'
+		and a.lesson_seq = b.lesson_seq(+)
+		group by a.lesson_seq, b.lesson_title
+		order by cnt desc
+		)
+		)
+		where rn between 1 and 10
+	</select>
+</mapper>

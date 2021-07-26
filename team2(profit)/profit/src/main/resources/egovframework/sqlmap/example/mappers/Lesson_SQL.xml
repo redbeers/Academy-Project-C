@@ -1,0 +1,1057 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+
+<mapper namespace="kr.or.profit.mapper.LessonMapper">
+	
+	<insert id="insertLesson">
+	    <selectKey order="BEFORE" keyProperty="lessonSeq" resultType="String">
+			SELECT NVL(MAX(TO_NUMBER(LESSON_SEQ)),0)+1 FROM LESSON
+		</selectKey>
+		<![CDATA[
+			INSERT INTO LESSON
+			(	LESSON_SEQ,
+				FILE_SEQ,
+				COMMON_SEQ,
+				LESSON_CATEGORY_SEQ,
+				LESSON_TITLE,
+				LESSON_TITLE_COMMENT,
+				LESSON_BALANCE,
+				LESSON_FLEX,
+				LESSON_STRONG,
+				LESSON_CORE,
+				LESSON_INTRO,
+				LESSON_PRICE,
+				LESSON_PRIVATE_FLAG,
+				LESSON_MONTH,
+				IN_USER_ID,
+				IN_DATE,
+				UP_USER_ID,
+				UP_DATE
+			)
+			VALUES (#{lessonSeq, jdbcType=VARCHAR},
+					#{fileSeq, jdbcType=VARCHAR},
+					'4',
+					#{lessonCategorySeq, jdbcType=VARCHAR},
+					#{lessonTitle, jdbcType=VARCHAR},
+					#{lessonTitleComment, jdbcType=VARCHAR},
+					#{lessonBalance, jdbcType=VARCHAR},
+					#{lessonFlex, jdbcType=VARCHAR},
+					#{lessonStrong, jdbcType=VARCHAR},
+					#{lessonCore, jdbcType=VARCHAR},
+					#{lessonIntro, jdbcType=VARCHAR},
+					#{lessonPrice, jdbcType=VARCHAR},
+					'N',
+					#{lessonMonth, jdbcType=VARCHAR},
+					#{inUserId, jdbcType=VARCHAR},
+					sysdate,
+					#{upUserId, jdbcType=VARCHAR},
+					sysdate)
+		]]>
+	</insert>
+	
+	<!-- 강의사진 파일테이블에 추가 -->
+	<insert id="insertLessonFile" parameterType="java.util.Map" > 
+	     <selectKey order="BEFORE" keyProperty="fileSeq" resultType="String">
+			SELECT NVL(MAX(TO_NUMBER(FILE_SEQ)),0)+1 FROM ATTACH_FILE
+		</selectKey>
+		 <foreach collection="list" item="item" index="index" open="INSERT ALL" close="SELECT * FROM DUAL" separator=" ">
+           
+         into 
+            attach_file
+               (
+                  file_seq, 
+                  file_detail_seq, 
+                  file_real_name, 
+                  file_save_name, 
+                  file_path, 
+                  in_user_id, 
+                  in_date, 
+                  up_user_id, 
+                  up_date
+               )
+         values 
+           
+           (
+             (
+                select 
+                  NVL(max(to_number(file_seq)),0) + 1 
+                 from 
+                    attach_file),
+                 1, 
+                 #{item.fileRealName}, 
+                 #{item.fileSaveName}, 
+                 #{item.filePath}, 
+                 #{item.inUserId}, 
+                 sysdate, 
+                 #{item.upUserId, jdbcType=VARCHAR}, 
+                 sysdate
+           )
+           
+           
+       </foreach>
+   </insert>
+	
+    
+    
+    <!-- 강의 수정하기 -->
+    <update id="updateLesson" parameterType="LessonVO">
+			UPDATE LESSON
+			SET FILE_SEQ = #{fileSeq, jdbcType=VARCHAR},
+				LESSON_CATEGORY_SEQ = #{lessonCategorySeq, jdbcType=VARCHAR},
+				LESSON_TITLE = #{lessonTitle, jdbcType=VARCHAR},
+				LESSON_TITLE_COMMENT = #{lessonTitleComment, jdbcType=VARCHAR},
+				LESSON_BALANCE = #{lessonBalance, jdbcType=VARCHAR},
+				LESSON_FLEX = #{lessonFlex, jdbcType=VARCHAR},
+				LESSON_STRONG = #{lessonStrong, jdbcType=VARCHAR},
+				LESSON_CORE = #{lessonCore, jdbcType=VARCHAR},
+				LESSON_INTRO = #{lessonIntro, jdbcType=VARCHAR},
+				LESSON_PRICE = #{lessonPrice, jdbcType=VARCHAR},
+                LESSON_MONTH = #{lessonMonth, jdbcType=VARCHAR},
+                UP_USER_ID = #{upUserId, jdbcType=VARCHAR},
+                UP_DATE = SYSDATE
+            WHERE LESSON_SEQ = #{lessonSeq, jdbcType=VARCHAR}
+	</update>
+	
+    
+    
+      <!-- 강의  파일 수정하기 -->
+    <update id="updateLessonFile" parameterType="LessonVO">
+
+			UPDATE ATTACH_FILE
+			SET FILE_REAL_NAME = #{fileRealName, jdbcType=VARCHAR},
+			    FILE_SAVE_NAME = #{fileSaveName, jdbcType=VARCHAR},
+			    FILE_PATH =#{filePath, jdbcType=VARCHAR},
+			    UP_USER_ID=#{upUserId, jdbcType=VARCHAR},
+			    UP_DATE = SYSDATE
+			WHERE FILE_SEQ =#{fileSeq, jdbcType=VARCHAR}
+		
+	</update>
+    
+    
+    
+	   <!-- 강의 목록조회 --> 
+	    
+	    <select id="selectLessonList"  resultType="egovMap" parameterType="Criteria">	 <!--  egovMap :  key 에 대하여 Camel Case 변환하여 super.put-->
+		 select
+				tt.rm, tt.lesson_seq, tt.lesson_hit, tt.lesson_category_seq, tt.file_seq, tt.lesson_good,
+	            tt.lesson_book, tt.good_flag,
+	            tt.book_flag, tt.lesson_title,
+	            tt.lesson_title_comment, tt.lesson_private_flag, tt.lesson_intro,
+	            tt.in_user_id, tt.in_date, tt.up_DATE, tt.file_path, tt.file_save_name,
+	            tt.lesson_reply, tt.lesson_category_name, tt.member_name,tt.lesson_price, tt.profile_path, tt.profile_save_name
+	    from
+	    	(
+	    	select rownum as rm, tbl.lesson_seq , tbl.lesson_hit, tbl.lesson_category_seq , 
+					tbl.file_seq, tbl.lesson_good, tbl.lesson_book, tbl.good_flag, 
+					tbl.book_flag, tbl.lesson_TITLE, 
+					tbl.lesson_title_comment, tbl.lesson_private_flag, tbl.lesson_intro, 
+	                tbl.in_user_id, tbl.in_date, tbl.up_date, tbl.file_path, tbl.file_save_name,
+					tbl.lesson_reply, tbl.lesson_category_name, tbl.MEMBER_NAME, tbl.lesson_price, tbl.profile_path, tbl.profile_save_name
+			from ( 
+			    SELECT A.lesson_seq,A.lesson_category_seq,A.file_seq,
+			            (select count(*) from bookgood bk where bookgood_gubun = 'G' and bk.lesson_seq = a.lesson_seq) as lesson_good,
+			            (select count(*) from bookgood bk where bookgood_gubun = 'B' and bk.lesson_seq = a.lesson_seq) as lesson_book,
+			            (select count(*) from bookgood bk where member_id= #{memberId} and bookgood_gubun = 'G' and bk.lesson_seq = a.lesson_seq) as good_flag,
+			            (select count(*) from bookgood bk where member_id= #{memberId} and bookgood_gubun = 'B' and bk.lesson_seq = a.lesson_seq) as book_flag,
+			          CASE WHEN LENGTH(A.lesson_TITLE) > 15 THEN SUBSTR(A.lesson_TITLE, 0, 15) || '...' ELSE A.lesson_TITLE END AS lesson_TITLE,
+			          A.lesson_title_comment,
+	                  A.LESSON_PRIVATE_FLAG,
+	                  A.LESSON_INTRO,
+			          A.lesson_HIT,
+                      a.lesson_price,
+			          A.IN_USER_ID,
+			          A.IN_DATE,
+	                  A.up_DATE,
+			          B.FILE_PATH,
+	                  b.FILE_SAVE_NAME,
+			          NVL(D.lesson_REPLY,0) AS lesson_REPLY,
+			          E.LESSON_CATEGORY_NAME,
+                      F.MEMBER_NAME,
+                      g.file_path profile_path,
+                      g.file_save_name profile_save_name
+			    FROM
+			          lesson A
+			          LEFT JOIN
+			          ATTACH_FILE B ON
+			          (A.FILE_SEQ = B.FILE_SEQ)
+			          LEFT JOIN
+			          (
+			          SELECT lesson_SEQ,
+			          COUNT(*) AS lesson_REPLY
+			          FROM REPLY
+			          WHERE REPLY_DEL_FLAG='N'
+			          GROUP BY
+			          lesson_SEQ
+			          ) D ON
+			          (A.lesson_SEQ = D.lesson_SEQ)
+			          LEFT JOIN
+			          lesson_CATEGORY E ON
+			          (A.lesson_CATEGORY_SEQ =
+			          E.lesson_CATEGORY_SEQ)
+                      LEFT JOIN MEMBER F ON
+                      (A.IN_USER_ID = F.MEMBER_ID)
+                      left join attach_file g on
+                      (f.file_seq = g.file_seq)
+			    WHERE
+			          A.COMMON_SEQ = 4 AND A.LESSON_PRIVATE_FLAG = 'N'
+			          and 1=1
+					<if test="selCate != null and selCate != '' ">
+						AND E.lesson_category_name = #{selCate}
+					</if>
+					<if test="keyword != null and keyword != '' ">
+					    AND A.LESSON_TITLE LIKE '%' || #{keyword} || '%'
+					    OR A.IN_USER_ID LIKE '%' || #{keyword} || '%'
+					</if>
+					
+	 			<!-- order by절-->
+					<trim prefix="ORDER BY" prefixOverrides="," >
+				    <choose>
+					    <when test="selLev == null or selLev == ''">
+							TO_NUMBER(A.LESSON_SEQ) DESC
+						</when>
+					    <otherwise>
+					        <choose>
+					            <when test="selLev == '조회순'">
+					             , TO_NUMBER(A.LESSON_HIT) DESC, TO_NUMBER(A.LESSON_SEQ)
+						        </when>
+						        <when test="selLev == '좋아요순'">
+								 , TO_NUMBER(LESSON_GOOD) DESC, TO_NUMBER(A.LESSON_SEQ)
+						        </when>
+						         <when test="selLev == '댓글순'">
+								 , TO_NUMBER(LESSON_reply) DESC, TO_NUMBER(A.LESSON_SEQ)
+						        </when>
+					        </choose>
+					      </otherwise>
+				    </choose>
+					</trim>
+				) tbl
+			) tt
+			where tt.rm between #{rowStart} and #{rowEnd}
+			
+	</select>
+	    
+	    
+	<!-- 강의 페이징 처리 -->
+		<select id="selectLessonCnt" parameterType="Criteria" resultType="int">
+		        select 
+		count(*)
+		from
+		(
+		SELECT A.lesson_seq,A.lesson_category_seq,A.file_seq,
+			            (select count(*) from bookgood bk where bookgood_gubun = 'G' and bk.lesson_seq = a.lesson_seq) as lesson_good,
+			            (select count(*) from bookgood bk where bookgood_gubun = 'B' and bk.lesson_seq = a.lesson_seq) as lesson_book,
+			            (select count(*) from bookgood bk where member_id=#{memberId} and bookgood_gubun = 'G' and bk.lesson_seq = a.lesson_seq) as good_flag,
+			            (select count(*) from bookgood bk where member_id=#{memberId} and bookgood_gubun = 'B' and bk.lesson_seq = a.lesson_seq) as book_flag,
+			          CASE WHEN LENGTH(A.lesson_TITLE) > 15 THEN SUBSTR(A.lesson_TITLE, 0, 15) || '...' ELSE A.lesson_TITLE END AS lesson_TITLE,
+			          A.lesson_title_comment,
+	                  A.LESSON_PRIVATE_FLAG,
+	                  A.LESSON_INTRO,
+			          A.lesson_HIT,
+                      a.lesson_price,
+			          A.IN_USER_ID,
+			          A.IN_DATE,
+	                  A.up_DATE,
+			          B.FILE_PATH,
+	                  b.FILE_SAVE_NAME,
+			          NVL(D.lesson_REPLY,0) AS lesson_REPLY,
+			          E.LESSON_CATEGORY_NAME,
+                      F.MEMBER_NAME,
+                      g.file_path profile_path,
+                      g.file_save_name profile_save_name
+			    FROM
+			          lesson A
+			          LEFT JOIN
+			          ATTACH_FILE B ON
+			          (A.FILE_SEQ = B.FILE_SEQ)
+			          LEFT JOIN
+			          (
+			          SELECT lesson_SEQ,
+			          COUNT(*) AS lesson_REPLY
+			          FROM REPLY
+			          WHERE REPLY_DEL_FLAG='N'
+			          GROUP BY
+			          lesson_SEQ
+			          ) D ON
+			          (A.lesson_SEQ = D.lesson_SEQ)
+			          LEFT JOIN
+			          lesson_CATEGORY E ON
+			          (A.lesson_CATEGORY_SEQ =
+			          E.lesson_CATEGORY_SEQ)
+                      LEFT JOIN MEMBER F ON
+                      (A.IN_USER_ID = F.MEMBER_ID)
+                      left join attach_file g on
+                      (f.file_seq = g.file_seq)
+			    WHERE
+			          A.COMMON_SEQ = 4 AND A.LESSON_PRIVATE_FLAG = 'N'
+			          and 1=1
+					<if test="selCate != null and selCate != '' ">
+						AND E.lesson_category_name = #{selCate}
+					</if>
+					<if test="keyword != null and keyword != '' ">
+					    AND A.LESSON_TITLE LIKE '%' || #{keyword} || '%'
+					    OR A.IN_USER_ID LIKE '%' || #{keyword} || '%'
+					</if>
+					
+					
+					
+		)
+		order by in_date desc
+		</select>	
+		
+	<!-- 강의상세 페이징 처리 -->
+		<select id="selectLessonClassCnt" parameterType="Criteria" resultType="int">
+		     select count(*) 
+		    	from lesson_detail 
+		</select>	
+	    
+		
+	  <!-- 인기강의 조회 -->
+	  <select id="selectTopLessonList"  resultType="egovMap" parameterType="String">	<!--  egovMap :  key 에 대하여 Camel Case 변환하여 super.put-->
+	    <![CDATA[
+	    SELECT T.LESSON_SEQ ,
+	    	   T.FILE_SEQ, 
+	    	   T.LESSON_CATEGORY_SEQ, 
+               T.GOOD_FLAG,
+	    	   T.BOOK_FLAG,
+               T.LESSON_GOOD, 
+               T.LESSON_BOOK,
+	    	   T.LESSON_TITLE, 
+	    	   T.LESSON_TITLE_COMMENT, 
+	    	   T.LESSON_PRIVATE_FLAG, 
+	    	   T.LESSON_INTRO, 
+	    	   T.LESSON_HIT, 
+               t.lesson_price,
+	    	   T.IN_USER_ID, 
+	    	   T.IN_DATE, 
+               t.file_path,
+               t.file_save_name,
+	    	   T.LESSON_REPLY,
+               T.LESSON_CATEGORY_NAME,
+               t.member_name,
+	    	   T.profile_path, 
+	    	   T.profile_save_name
+	  
+				FROM
+				(
+				SELECT A.lesson_seq,A.lesson_category_seq,A.file_seq,
+			            (select count(*) from bookgood bk where bookgood_gubun = 'G' and bk.lesson_seq = a.lesson_seq) as lesson_good,
+			            (select count(*) from bookgood bk where bookgood_gubun = 'B' and bk.lesson_seq = a.lesson_seq) as lesson_book,
+			            (select count(*) from bookgood bk where member_id= #{memberId} and bookgood_gubun = 'G' and bk.lesson_seq = a.lesson_seq) as good_flag,
+			            (select count(*) from bookgood bk where member_id= #{memberId} and bookgood_gubun = 'B' and bk.lesson_seq = a.lesson_seq) as book_flag,
+			          CASE WHEN LENGTH(A.lesson_TITLE) > 25 THEN SUBSTR(A.lesson_TITLE, 0, 25) || '...' ELSE A.lesson_TITLE END AS lesson_TITLE,
+			          A.lesson_title_comment,
+	                  A.LESSON_PRIVATE_FLAG,
+	                  A.LESSON_INTRO,
+			          A.lesson_HIT,
+                      a.lesson_price,
+			          A.IN_USER_ID,
+			          A.IN_DATE,
+	                  A.up_DATE,
+			          B.FILE_PATH,
+	                  b.FILE_SAVE_NAME,
+			          NVL(D.lesson_REPLY,0) AS lesson_REPLY,
+			          E.LESSON_CATEGORY_NAME,
+                      F.MEMBER_NAME,
+                      g.file_path profile_path,
+                      g.file_save_name profile_save_name
+			    FROM
+			          lesson A
+			          LEFT JOIN
+			          ATTACH_FILE B ON
+			          (A.FILE_SEQ = B.FILE_SEQ)
+			          LEFT JOIN
+			          (
+			          SELECT lesson_SEQ,
+			          COUNT(*) AS lesson_REPLY
+			          FROM REPLY
+			          WHERE REPLY_DEL_FLAG='N'
+			          GROUP BY
+			          lesson_SEQ
+			          ) D ON
+			          (A.lesson_SEQ = D.lesson_SEQ)
+			          LEFT JOIN
+			          lesson_CATEGORY E ON
+			          (A.lesson_CATEGORY_SEQ =
+			          E.lesson_CATEGORY_SEQ)
+                      LEFT JOIN MEMBER F ON
+                      (A.IN_USER_ID = F.MEMBER_ID)
+                      left join attach_file g on
+                      (f.file_seq = g.file_seq)
+				        	
+				        
+				        order by TO_NUMBER(A.LESSON_HIT) desc
+				) T
+				where rownum <=5
+				and t.LESSON_PRIVATE_FLAG = 'N'
+				]]>
+		</select>
+	    
+	    
+	    
+	    <!-- 강의 상세보기 -->
+    <select id="selectLessonDetail" resultType="egovMap">
+		<![CDATA[
+		SELECT A.LESSON_SEQ, 
+	        (select count(*) from bookgood bk where member_id=#{memberId, jdbcType=VARCHAR} and bookgood_gubun = 'G' and bk.LESSON_seq = a.LESSON_seq) as good_flag,
+	        (select count(*) from bookgood bk where member_id=#{memberId, jdbcType=VARCHAR} and bookgood_gubun = 'B' and bk.LESSON_seq = a.LESSON_seq) as book_flag,
+	        
+	       A.FILE_SEQ, 
+	       A.LESSON_CATEGORY_SEQ, 
+	       A.LESSON_TITLE, 
+	       A.LESSON_TITLE_COMMENT, 
+	       A.LESSON_BALANCE, 
+	       A.LESSON_FLEX, 
+	       A.LESSON_STRONG,
+	       A.LESSON_CORE, 
+	       A.LESSON_INTRO, 
+	       A.LESSON_PRICE, 
+	       A.LESSON_MONTH, 
+	       A.IN_USER_ID, 
+	       TO_CHAR(A.IN_DATE,'YYYY-MM-DD') IN_DATE, 
+	       A.UP_USER_ID, 
+	       A.UP_DATE, 
+	       B.FILE_SAVE_NAME, 
+	       B.FILE_REAL_NAME,
+	       C.LESSON_CATEGORY_NAME,
+	       NVL(D.LESSON_REPLY,0) AS LESSON_REPLY ,
+	       NVL(E.LESSON_BOOK,0) AS LESSON_BOOK,
+	       NVL(F.LESSON_GOOD,0) AS LESSON_GOOD,
+	       A.LESSON_HIT,
+           G.MEMBER_NAME
+			FROM LESSON A
+            LEFT OUTER JOIN (SELECT FILE_SEQ, FILE_SAVE_NAME , FILE_REAL_NAME
+			                FROM ATTACH_FILE ) B
+			ON A.FILE_SEQ = B.FILE_SEQ
+			LEFT OUTER JOIN (SELECT LESSON_CATEGORY_SEQ, LESSON_CATEGORY_NAME
+                            FROM LESSON_CATEGORY ) C
+            ON A.LESSON_CATEGORY_SEQ = C.LESSON_CATEGORY_SEQ
+            LEFT OUTER JOIN (SELECT LESSON_SEQ, COUNT(*) AS LESSON_REPLY
+                            FROM REPLY
+                            WHERE REPLY_DEL_FLAG='N'
+                            GROUP BY LESSON_SEQ) D
+            ON A.LESSON_SEQ = D.LESSON_SEQ
+            LEFT OUTER JOIN (SELECT LESSON_SEQ, COUNT(*) AS LESSON_BOOK
+                            FROM BOOKGOOD
+                            WHERE BOOKGOOD_FLAG='Y' AND BOOKGOOD_GUBUN='B'
+                            GROUP BY LESSON_SEQ) E
+            ON A.LESSON_SEQ = E.LESSON_SEQ
+            LEFT OUTER JOIN (SELECT LESSON_SEQ, COUNT(*) AS LESSON_GOOD
+                            FROM BOOKGOOD
+                            WHERE BOOKGOOD_FLAG='Y' AND BOOKGOOD_GUBUN='G'
+                            GROUP BY LESSON_SEQ) F
+            ON A.LESSON_SEQ = F.LESSON_SEQ
+            LEFT OUTER JOIN (SELECT MEMBER_ID,MEMBER_NAME,MEMBER_GUBUN
+                            FROM MEMBER) G
+            ON A.IN_USER_ID = G.MEMBER_ID
+			WHERE A.LESSON_SEQ= #{lessonSeq, jdbcType=VARCHAR}
+			]]>
+	</select>
+	
+    <!-- 자유게시판 상세 댓글 나의 프로필 사진 조회 -->
+	<select id="selectMyProfile" resultType="String">
+		SELECT B.FILE_PATH as
+		file_path
+		FROM MEMBER A
+		LEFT JOIN
+		ATTACH_FILE B ON
+		(A.FILE_SEQ=B.FILE_SEQ)
+		WHERE MEMBER_ID=#{memberId}
+	</select>
+	
+	<!-- 자유게시판 댓글 목록 조회-->
+	<select id="selectReplyList" resultType="egovMap">
+		SELECT 
+		RN,
+		C.REPLY_SEQ, 
+		C.REPLY_CONTENT, 
+		C.LESSON_SEQ, 
+		C.REPLY_DEL_FLAG, 
+		C.REPLY_PARENT_SEQ, 
+		C.REPLY_DEPTH, 
+		C.REPLY_NEXT_DEPTH ,
+		C.IN_USER_ID, 
+		C.IN_DATE, 
+		C.REPLY_SECRET_FLAG,
+		C.MEMBER_NICKNAME, 
+		C.MEMBER_GUBUN,
+		C.FILE_SEQ, 
+		D.FILE_PATH
+        FROM
+        (
+        SELECT 
+        RN,
+        REPLY_SEQ, 
+        REPLY_CONTENT, 
+        LESSON_SEQ, 
+        REPLY_DEL_FLAG, 
+        REPLY_PARENT_SEQ, 
+        REPLY_DEPTH, 
+        LEAD(REPLY_DEPTH) OVER(ORDER BY RN) AS REPLY_NEXT_DEPTH ,
+        IN_USER_ID, 
+        IN_DATE, 
+        REPLY_SECRET_FLAG,
+        MEMBER_NICKNAME, 
+        MEMBER_GUBUN,
+        FILE_SEQ
+		FROM
+		(
+		SELECT 
+		ROWNUM AS RN, 
+		A.LESSON_SEQ, 
+		A.REPLY_SEQ, 
+		A.REPLY_CONTENT, 
+		A.REPLY_DEL_FLAG, 
+		A.REPLY_PARENT_SEQ, 
+		A.REPLY_DEPTH,
+		A.IN_USER_ID, 
+		A.IN_DATE, 
+		A.REPLY_SECRET_FLAG,
+		B.MEMBER_NICKNAME, 
+		B.MEMBER_GUBUN,
+		B.FILE_SEQ
+		FROM
+		(
+		SELECT *
+		FROM REPLY
+		WHERE REPLY_DEL_FLAG='N'
+		START WITH REPLY_PARENT_SEQ IS NULL
+		CONNECT BY PRIOR REPLY_SEQ = REPLY_PARENT_SEQ
+		ORDER SIBLINGS BY IN_DATE DESC, REPLY_SEQ
+		) A
+		LEFT JOIN 
+		MEMBER B ON
+		(A.IN_USER_ID=B.MEMBER_ID)
+		)
+		WHERE LESSON_SEQ = #{lessonSeq}
+        )
+        C
+        LEFT JOIN 
+        ATTACH_FILE D ON
+        (C.FILE_SEQ = D.FILE_SEQ)
+        ORDER BY RN ASC
+	</select>
+	
+	<!-- 자유게시판 상세 댓글 추가 -->
+	<insert id="insertLessonReply">
+		<selectKey order="BEFORE" keyProperty="replySeq"
+			resultType="String">
+			SELECT NVL(MAX(TO_NUMBER(REPLY_SEQ)),0)+1 FROM REPLY
+		</selectKey>
+		<![CDATA[
+		INSERT 
+			INTO 
+		reply
+		(
+		reply_seq, 
+		lesson_seq, 
+		reply_content, 
+		reply_del_flag, 
+		reply_depth,
+		in_user_id,
+		in_date, 
+		up_user_id, 
+		up_date,
+		reply_secret_flag
+		)
+		VALUES 
+		(
+		#{replySeq},
+		#{lessonSeq},
+		#{replyContent},
+		'N',
+		'1',
+		#{inUserId},
+		sysdate, 
+		#{upUserId}, 
+		sysdate,
+		#{replySecretFlag}
+		)
+		]]>
+	</insert>
+	
+	
+	<!-- 강의 답글 추가 -->
+	<insert id="insertLessonRereply">
+		<selectKey order="BEFORE" keyProperty="replySeq"
+			resultType="String">
+			SELECT NVL(MAX(TO_NUMBER(REPLY_SEQ)),0)+1 FROM REPLY
+		</selectKey>
+		<![CDATA[
+		INSERT 
+			INTO 
+		reply
+		(
+		reply_seq, 
+		lesson_seq, 
+		reply_content, 
+		reply_del_flag, 
+		reply_parent_seq,
+		reply_depth, 
+		in_user_id,
+		in_date, 
+		up_user_id, 
+		up_date,
+		reply_secret_flag
+		)
+		VALUES 
+		(
+		#{replySeq},
+		#{lessonSeq},
+		#{replyContent},
+		'N',
+		#{replyParentSeq},
+		'2',
+		#{inUserId},
+		sysdate, 
+		#{upUserId}, 
+		sysdate,
+		#{replySecretFlag}
+		)
+		
+		]]>
+	</insert>
+	
+	<!-- 강의 댓글 삭제 -->
+	<update id="deleteLessonReply" parameterType="String">
+        UPDATE REPLY B
+		SET    B.REPLY_DEL_FLAG = 'Y'
+		WHERE  B.REPLY_SEQ IN(
+		    SELECT A.REPLY_SEQ
+		    FROM
+		    (
+		        SELECT *
+		        FROM REPLY
+		        START WITH REPLY_PARENT_SEQ IS NULL
+		        CONNECT BY PRIOR REPLY_SEQ = REPLY_PARENT_SEQ
+		        ORDER SIBLINGS BY REPLY_SEQ
+		    ) A
+		    WHERE (A.REPLY_SEQ = #{replySeq} OR REPLY_PARENT_SEQ = #{replySeq})
+		)
+
+	</update>
+	
+	<!-- 강의 조회수 증가 -->
+	
+	<update id="increaseLessonHit" parameterType="String">
+        UPDATE LESSON 
+		SET 
+		LESSON_HIT = LESSON_HIT+ 1
+		WHERE LESSON_SEQ = #{lessonSeq}
+
+	</update>
+	
+	<!-- 좋아요/북마크 추가 -->
+	<insert id="insertLessonBookgood" parameterType="BookgoodVo">
+	    <selectKey order="BEFORE" keyProperty="bookgoodSeq"
+			resultType="String">
+			SELECT NVL(MAX(TO_NUMBER(bookgood_seq)),0)+1 FROM
+			bookgood
+		</selectKey>
+		insert into bookgood
+		(bookgood_seq, member_id, lesson_seq, bookgood_gubun, bookgood_flag, in_user_id, in_date, up_user_id, up_date)
+		values
+		(#{bookgoodSeq}, #{memberId}, #{lessonSeq}, #{bookgoodGubun}, 'Y', #{memberId}, sysdate, #{memberId}, sysdate)
+	</insert>
+	
+	<!-- 좋아요/북마크 개수 count -->
+    <select id="selectLessonBookgoodCnt" parameterType="BookgoodVO" resultType="int">
+        select count(*)
+		from bookgood
+		where lesson_seq = #{lessonSeq} and bookgood_gubun = #{bookgoodGubun}
+    </select>
+	
+      <!-- 좋아요/북마크 삭제 -->
+	<delete id="deleteLessonBookgood" parameterType="BookgoodVO">
+	    delete bookgood
+		where member_id = #{memberId} and lesson_seq = #{lessonSeq} 
+		and bookgood_gubun = #{bookgoodGubun}
+	</delete> 
+	
+	
+	<!-- 강의 비활성화 -->
+    <update id="deleteLesson" parameterType="LessonVO">
+
+			UPDATE LESSON
+			SET LESSON_PRIVATE_FLAG = 'Y',
+                UP_DATE = SYSDATE
+            WHERE LESSON_SEQ = #{lessonSeq, jdbcType=VARCHAR}
+
+	</update>
+	
+    
+    
+   	<!-- 상세강의 파일테이블에 추가 -->
+	<insert id="insertClassFile" parameterType="java.util.Map" > 
+	     <selectKey order="BEFORE" keyProperty="fileSeq" resultType="String">
+			SELECT NVL(MAX(TO_NUMBER(FILE_SEQ)),0)+1 FROM ATTACH_FILE
+		</selectKey>
+		 <foreach collection="list" item="item" index="index" open="INSERT ALL" close="SELECT * FROM DUAL" separator=" ">
+           
+         into 
+            attach_file
+               (
+                  file_seq, 
+                  file_detail_seq, 
+                  file_real_name, 
+                  file_save_name, 
+                  file_path, 
+                  in_user_id, 
+                  in_date, 
+                  up_user_id, 
+                  up_date
+               )
+         values 
+           
+           (
+             (
+                select 
+                  NVL(max(to_number(file_seq)),0) + 1 
+                 from 
+                    attach_file),
+                 #{item.fileDetailSeq}, 
+                 #{item.fileRealName}, 
+                 #{item.fileSaveName}, 
+                 #{item.filePath}, 
+                 #{item.inUserId, jdbcType=VARCHAR}, 
+                 sysdate, 
+                 #{item.upUserId, jdbcType=VARCHAR}, 
+                 sysdate
+           )
+           
+           
+       </foreach>
+   </insert>
+   	
+	
+	<!-- 상세 강의 등록 -->
+	<insert id="insertClass">
+	    <selectKey order="BEFORE" keyProperty="lessonDetailSeq" resultType="String">
+			SELECT NVL(MAX(TO_NUMBER(LESSON_DETAIL_SEQ)),0)+1 FROM LESSON_DETAIL
+		</selectKey>
+		<![CDATA[
+			INSERT INTO LESSON_DETAIL
+			(	LESSON_DETAIL_SEQ,
+				LESSON_SEQ,
+				FILE_SEQ,
+				LESSON_DETAIL_TITLE,
+				LESSON_DETAIL_CONTENT,
+				IN_USER_ID,
+				IN_DATE,
+				UP_USER_ID,
+				UP_DATE
+			)
+			VALUES (#{lessonDetailSeq, jdbcType=VARCHAR},
+					#{lessonSeq, jdbcType=VARCHAR},
+					#{fileSeq, jdbcType=VARCHAR},
+					#{lessonDetailTitle, jdbcType=VARCHAR},
+					#{lessonDetailContent, jdbcType=VARCHAR},
+					#{inUserId, jdbcType=VARCHAR},
+					sysdate,
+					#{upUserId, jdbcType=VARCHAR},
+					sysdate)
+		]]>
+	</insert>
+	
+	
+	<!-- 상세강의 목록조회 -->
+<!-- 	<select id="selectClassList"  resultType="egovMap" parameterType="Criteria" >	 egovMap :  key 에 대하여 Camel Case 변환하여 super.put -->
+
+<!-- 			SELECT A.LESSON_DETAIL_SEQ, -->
+<!-- 			        A.LESSON_SEQ, -->
+<!-- 			        A.FILE_SEQ, -->
+<!-- 			        A.LESSON_DETAIL_TITLE, -->
+<!-- 			        A.LESSON_DETAIL_CONTENT, -->
+<!-- 			        A.IN_USER_ID, -->
+<!-- 			        TO_CHAR(A.IN_DATE,'YYYY-MM-DD') IN_DATE, -->
+<!-- 			        A.UP_USER_ID, -->
+<!-- 			        A.UP_DATE, -->
+<!-- 			        B.FILE_SAVE_NAME, -->
+<!-- 			        C.LESSON_CATEGORY_NAME -->
+<!-- 			FROM LESSON_DETAIL A -->
+<!-- 			LEFT OUTER JOIN(SELECT FILE_SEQ, FILE_SAVE_NAME, FILE_PATH -->
+<!-- 			                    FROM ATTACH_FILE -->
+<!-- 			                    WHERE FILE_DETAIL_SEQ='1') B -->
+<!-- 			    ON A.FILE_SEQ = B.FILE_SEQ -->
+<!-- 			LEFT OUTER JOIN(SELECT D.LESSON_CATEGORY_NAME,D.LESSON_CATEGORY_SEQ, E.LESSON_SEQ -->
+<!-- 			                    FROM LESSON_CATEGORY D, LESSON E -->
+<!-- 			                    WHERE D.LESSON_CATEGORY_SEQ = E.LESSON_CATEGORY_SEQ) C -->
+<!-- 			    ON A.LESSON_SEQ = C.LESSON_SEQ -->
+<!-- 			WHERE A.LESSON_SEQ = #{lessonSeq, jdbcType=VARCHAR} -->
+<!-- 			ORDER BY TO_NUMBER(LESSON_DETAIL_SEQ) -->
+<!-- 	</select> -->
+	
+	<!-- 상세강의 목록조회 -->
+	<select id="selectClassList"  resultType="egovMap" parameterType="Criteria" >	 <!--  egovMap :  key 에 대하여 Camel Case 변환하여 super.put-->
+		select tt.rm, tt.LESSON_DETAIL_SEQ, tt.LESSON_SEQ, tt.FILE_SEQ, tt.LESSON_DETAIL_TITLE, tt.LESSON_DETAIL_CONTENT,
+		       tt.IN_USER_ID, tt.IN_DATE, tt.UP_USER_ID, tt.UP_DATE, tt.LESSON_CATEGORY_NAME,tt.FILE_SAVE_NAME,tt.FILE_PATH
+		    from
+		        (select rownum as rm, tb.LESSON_DETAIL_SEQ, tb.LESSON_SEQ, tb.FILE_SEQ,
+		                tb.LESSON_DETAIL_TITLE, tb.LESSON_DETAIL_CONTENT, tb.IN_USER_ID, tb.IN_DATE,
+		                tb.UP_USER_ID, tb.UP_DATE, tb.LESSON_CATEGORY_NAME,tb.FILE_SAVE_NAME,tb.FILE_PATH
+		        from(SELECT 
+		                A.LESSON_DETAIL_SEQ,
+		                A.LESSON_SEQ,
+		                A.FILE_SEQ,
+		                A.LESSON_DETAIL_TITLE,
+		                A.LESSON_DETAIL_CONTENT,
+		                A.IN_USER_ID,
+		                TO_CHAR(A.IN_DATE,'YYYY-MM-DD') IN_DATE,
+		                A.UP_USER_ID,
+		                A.UP_DATE,
+		                B.FILE_SAVE_NAME,
+		                B.FILE_PATH,
+		                C.LESSON_CATEGORY_NAME
+		                    FROM LESSON_DETAIL A
+		                    LEFT OUTER JOIN(SELECT FILE_SEQ, FILE_SAVE_NAME, FILE_PATH
+		                                        FROM ATTACH_FILE
+		                                        WHERE FILE_DETAIL_SEQ='1') B
+		                        ON A.FILE_SEQ = B.FILE_SEQ
+		                    LEFT OUTER JOIN(SELECT D.LESSON_CATEGORY_NAME,D.LESSON_CATEGORY_SEQ, E.LESSON_SEQ
+		                                        FROM LESSON_CATEGORY D, LESSON E
+		                                        WHERE D.LESSON_CATEGORY_SEQ = E.LESSON_CATEGORY_SEQ) C
+		                        ON A.LESSON_SEQ = C.LESSON_SEQ
+		                    WHERE A.LESSON_SEQ = #{lessonSeq, jdbcType=VARCHAR}
+		                   
+		                    ORDER BY TO_NUMBER(a.LESSON_DETAIL_SEQ)
+		                )tb
+		            )tt
+		     
+		     where tt.rm between #{rowStart} and  #{rowEnd}
+	</select>
+	
+	
+	    
+    <!-- 상세 강의 디테일 조회 -->
+	<select id="selectclassDetail" resultType="egovMap">
+
+		SELECT A.LESSON_DETAIL_SEQ,
+		        A.LESSON_SEQ,
+		        A.FILE_SEQ,
+		        A.LESSON_DETAIL_TITLE,
+		        A.LESSON_DETAIL_CONTENT,
+		        A.IN_USER_ID,
+		        TO_CHAR(A.IN_DATE,'YYYY-MM-DD') IN_DATE,
+		        A.UP_USER_ID,
+		        A.UP_DATE,
+		        B.FILE_SAVE_NAME
+		    FROM LESSON_DETAIL A
+		    LEFT OUTER JOIN(SELECT FILE_SEQ, FILE_SAVE_NAME 
+		                    FROM ATTACH_FILE 
+		                    WHERE FILE_DETAIL_SEQ ='2') B
+		        ON A.FILE_SEQ = B.FILE_SEQ
+		    WHERE LESSON_DETAIL_SEQ = #{lessonDetailSeq, jdbcType=VARCHAR}
+
+	</select>
+	
+	<!-- 상세 강의 삭제 -->
+	<delete id="deleteClass">
+
+			DELETE FROM LESSON_DETAIL
+			WHERE LESSON_DETAIL_SEQ =#{lessonDetailSeq}
+
+	</delete>
+	
+	<select id="selectCateLessonList"  resultType="egovMap" parameterType="java.util.HashMap">
+	    
+	   SELECT A.LESSON_SEQ ,
+				   A.FILE_SEQ, 
+				   A.COMMON_SEQ, 
+				   A.LESSON_CATEGORY_SEQ, 
+					CASE
+					    WHEN LENGTH(A.LESSON_TITLE) > 20 THEN SUBSTR(A.LESSON_TITLE, 0, 20) || '...'
+					    ELSE A.LESSON_TITLE
+					    END AS LESSON_TITLE, 
+				  	A.LESSON_TITLE_COMMENT, 
+				  	A.LESSON_PRIVATE_FLAG, 
+				  	A.LESSON_INTRO, 
+				  	NVL(A.LESSON_HIT,0) AS LESSON_HIT, 
+				  	A.IN_USER_ID, 
+				  	D.FILE_PATH,
+				  	D.FILE_SAVE_NAME, 
+				  	E.LESSON_CATEGORY_NAME,
+				  	NVL(B.LESSON_GOOD,0) as LESSON_good,
+                    NVL(f.LESSON_BOOK,0) as LESSON_book,
+                    NVL(C.LESSON_REPLY,0) as LESSON_reply
+         
+                FROM LESSON A
+				    LEFT OUTER JOIN (SELECT LESSON_SEQ, COUNT(*) AS LESSON_GOOD
+				                FROM BOOKGOOD
+				                WHERE BOOKGOOD_FLAG='Y' AND BOOKGOOD_GUBUN='G'
+				                GROUP BY LESSON_SEQ) B
+				ON A.LESSON_SEQ = B.LESSON_SEQ
+				    LEFT OUTER JOIN(SELECT LESSON_SEQ,COUNT(*) AS LESSON_REPLY
+                                FROM REPLY
+                                WHERE REPLY_DEL_FLAG='N'
+				                GROUP BY LESSON_SEQ) C
+				ON A.LESSON_SEQ = C.LESSON_SEQ
+				    LEFT OUTER JOIN (SELECT FILE_SEQ,FILE_PATH,FILE_SAVE_NAME
+				                FROM ATTACH_FILE ) D
+				ON A.FILE_SEQ = D.FILE_SEQ
+				    LEFT OUTER JOIN (SELECT LESSON_CATEGORY_SEQ, LESSON_CATEGORY_NAME
+				                FROM LESSON_CATEGORY) E
+				ON A.LESSON_CATEGORY_SEQ = E.LESSON_CATEGORY_SEQ
+					LEFT OUTER JOIN (SELECT LESSON_SEQ, COUNT(*) AS LESSON_BOOK
+										FROM BOOKGOOD
+										WHERE BOOKGOOD_FLAG='Y' AND BOOKGOOD_GUBUN='B'
+										GROUP BY LESSON_SEQ) F
+				ON A.LESSON_SEQ = F.LESSON_SEQ
+				<if test="sel_cvalue != null and sel_cvalue != ''">
+		            where e.lesson_category_name = #{sel_cvalue}
+		        </if>
+					
+				ORDER BY TO_NUMBER(A.LESSON_SEQ) DESC 
+<!-- 				<if test="selLev != null and selLev != ''"> -->
+<!-- 		            LESSON_HIT = #{_parameter} -->
+<!-- 		        </if> -->
+	    
+	    
+	</select>
+	
+ 	<!-- 강의 구매내역 추가 --> 
+	<insert id="insertBuyLesson">
+		<selectKey order="BEFORE" keyProperty="buyLessonSeq"
+			resultType="String">
+			SELECT NVL(MAX(TO_NUMBER(BUY_LESSON_SEQ)),0)+1 FROM
+			BUY_LESSON
+		</selectKey>
+		<![CDATA[
+ 			INSERT INTO  
+				BUY_LESSON 
+	 			( 
+	 			BUY_LESSON_SEQ,
+	 			LESSON_SEQ,
+	 			LESSON_FINISH_DATE, 
+	 			LESSON_REFUND_FLAG,
+	 			LESSON_CLICK_FLAG,
+	 			LESSON_CLICK_DATE,
+	 			IN_USER_ID,
+	 			IN_DATE,
+	 			UP_USER_ID, 
+	 			UP_DATE 
+	 			) 	  
+	 			VALUES  
+	 			( 
+	 			#{buyLessonSeq},  
+	 			#{lessonSeq},  
+	 			#{lessonFinishDate}, 
+	 			'N',  
+	 			'N',
+	 			#{lessonClickDate, jdbcType=VARCHAR}, 
+	 			#{inUserId}, 
+				SYSDATE,  
+				#{upUserId}, 
+ 				SYSDATE 
+			) 
+ 		]]> 
+	</insert>
+	
+	<!-- 강의 구매한 사람이 있는지 확인 -->
+	<select id="selectBuyLesson" resultType="int" parameterType="hashmap">
+	    SELECT COUNT(*)
+		FROM BUY_LESSON
+		WHERE IN_USER_ID = #{memberId}
+		AND LESSON_REFUND_FLAG = 'N'
+		AND LESSON_SEQ = #{lessonSeq}
+	</select>
+	
+	<!-- 강의등록 전 트레이너인지 확인 -->
+	<select id="checkTrainer" resultType="int">
+	    SELECT COUNT(*)
+		    FROM MEMBER
+		WHERE MEMBER_GUBUN='T'
+		AND MEMBER_ID = #{memberId}
+	</select>
+	
+	
+	<!-- 강의시작하면 구매테이블 update -->
+    <update id="updBuyLesson" parameterType="BuyLessonVO" >
+			UPDATE BUY_LESSON
+			SET LESSON_CLICK_FLAG = 'Y',
+				LESSON_CLICK_DATE = to_char(sysdate,'YYYY/MM/DD')
+            WHERE LESSON_SEQ = #{lessonSeq}
+            AND IN_USER_ID = #{memberId}
+            AND LESSON_REFUND_FLAG = 'N'
+	</update>
+
+    
+    <!-- 페이징용 상세강의 개수 cnt -->
+    <select id="selectClassCnt" parameterType="Criteria" resultType="int">
+        select count(*)
+		    from lesson_detail a
+		    left join lesson b
+		    on (a.lesson_seq = b.lesson_seq)
+		where b.lesson_private_flag='N'
+		AND A.Lesson_Seq =#{lessonSeq}
+        
+    </select>
+    
+<!--     온라인클래스 상세 트레이너 소개정보 -->
+	 <select id="trainerInfo" parameterType="String" resultType="egovMap">
+        select a.trainer_seq,
+		       a.trainer_gym,
+		       a.trainer_award,
+		       a.trainer_career,
+		       b.file_seq,
+		       c.file_real_name,
+		       c.file_save_name,
+		       c.file_path,
+		       d.lesson_seq
+		    from trainer a
+		    left join member b on
+		    (a.in_user_id = b.member_id)
+		    left join attach_file c on
+		    (b.file_seq = c.file_seq)
+		    left join lesson d on
+		    (a.in_user_id = d.in_user_id)
+		where d.lesson_seq = #{lessonSeq}
+    </select>
+    
+<!-- 	 강좌 추천 ai -->
+	<select id="recommand" parameterType="String" resultType="egovMap">
+         select *
+			from(
+			    select a.recommand_seq,
+			           a.recommand_detail_seq,
+			           a.lesson_seq,
+			           a.in_date,
+			           CASE
+					    WHEN LENGTH(b.lesson_title) > 8 THEN SUBSTR(b.lesson_title, 0, 8) || '...'
+					    ELSE b.lesson_title
+					    END AS LESSON_TITLE,
+			           c.member_name,
+			           d.lesson_category_name,
+			           e.file_path
+			        from recommand a , lesson b, member c, lesson_category d, attach_file e
+			        where a.recommand_detail_seq = b.lesson_seq(+)
+			        and b.in_user_id = c.member_id(+)
+			        and b.lesson_category_seq = d.lesson_category_seq(+)
+			        and b.file_seq = e.file_seq(+)
+			        and a.lesson_seq = '23'
+			        
+			        order by to_number(recommand_seq) desc 
+			        )
+                    where rownum &lt; 6
+			        order by recommand_seq desc
+   
+    </select>
+    
+<!-- 	댓글 수 가져오기 -->
+	<select id="selectReplyCnt" resultType="egovMap">
+	    SELECT 
+		count(*) as cnt
+		FROM
+		(
+		SELECT *
+		FROM REPLY
+		WHERE REPLY_DEL_FLAG='N'
+		START WITH REPLY_PARENT_SEQ IS NULL
+		CONNECT BY PRIOR REPLY_SEQ = REPLY_PARENT_SEQ
+		ORDER SIBLINGS BY IN_DATE DESC, REPLY_SEQ
+		) A
+		LEFT JOIN 
+		MEMBER B ON
+		(A.IN_USER_ID=B.MEMBER_ID)
+		WHERE lesson_seq = #{lessonSeq}
+	</select>
+	
+</mapper>

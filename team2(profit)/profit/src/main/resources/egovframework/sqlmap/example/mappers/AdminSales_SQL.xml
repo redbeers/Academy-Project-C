@@ -1,0 +1,399 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+
+<mapper namespace="kr.or.profit.mapper.AdminSalesMapper">
+	
+<!--     정산리스트 -->
+    <select id="selectAdminSales"  resultType="egovMap" parameterType="Criteria">	 <!--  egovMap :  key 에 대하여 Camel Case 변환하여 super.put-->
+		 select
+				tt.rm, tt.yyyymm, tt.cnt, tt.accountflag, tt.Gubun
+	    from
+	    	(
+	    	select rownum as rm, m.yyyymm, m.cnt, m.accountflag, m.Gubun
+                    from(
+                        select to_date(substr(to_char(in_date,'yyyymm'),0,7),'yyyymm')  yyyymm,
+                                count(*) cnt, 
+                                (case when class_account_flag = 'Y' then '정산'
+                                      when class_account_flag = 'N' then '미정산'
+                                      end) accountflag,
+                                '온라인클래스'   Gubun          
+                               
+                            from buy_lesson a
+                            group by to_date(substr(to_char(in_date,'yyyymm'),0,7),'yyyymm'),class_account_flag,'온라인클래스' 
+                          
+                            
+                        union all
+                        
+                        select to_date(substr(to_char(in_date,'yyyymm'),0,7),'yyyymm')  yyyymm,
+                                count(*) cnt, 
+                               (case when chatting_account_flag = 'Y' then '정산'
+                                      when chatting_account_flag = 'N' then '미정산'
+                                      end) accountflag,
+                                '채팅'  as Gubun         
+                               
+                            from chatting b
+                            group by to_date(substr(to_char(in_date,'yyyymm'),0,7),'yyyymm') ,chatting_account_flag,'채팅'
+                        
+                        )m
+			          where 1=1
+                    <if test="selStatus == '정산'">
+                        and m.accountflag = '정산'
+                    </if>
+                    <if test="selStatus == '미정산'">
+                        and m.accountflag = '미정산'
+                    </if>
+                    <if test="selDate != null and selDate !=''">
+                        and to_char(m.yyyymm, 'YYYYMM') = #{selDate}
+                    </if>
+                    <if test="selGubun == '온라인클래스'">
+                        and m.Gubun = '온라인클래스'
+                    </if>
+                    <if test="selGubun == '채팅'">
+                        and m.Gubun = '채팅'
+                    </if>
+					order by m.yyyymm desc, m.gubun, m.accountflag
+					
+				)tt
+			where rm between #{rowStart} and #{rowEnd}
+			
+	</select>
+	
+<!--     정산리스트 개수 -->
+    <select id="selectAdminSalesCnt" parameterType="Criteria" resultType="int">
+	  	select 
+		count(*)
+		from
+		(
+		select to_date(substr(to_char(in_date,'yyyymm'),0,7),'yyyymm')  yyyymm,
+                                count(*) cnt, 
+                                (case when class_account_flag = 'Y' then '정산'
+                                      when class_account_flag = 'N' then '미정산'
+                                      end) accountflag,
+                                '온라인클래스'   Gubun          
+                               
+                            from buy_lesson a
+                            group by to_date(substr(to_char(in_date,'yyyymm'),0,7),'yyyymm') ,class_account_flag,'온라인클래스' 
+                          
+                            
+                        union all
+                        
+                        select to_date(substr(to_char(in_date,'yyyymm'),0,7),'yyyymm')  yyyymm,
+                                count(*) cnt, 
+                                (case when chatting_account_flag = 'Y' then '정산'
+                                      when chatting_account_flag = 'N' then '미정산'
+                                      end) accountflag,
+                                '채팅'  as Gubun         
+                               
+                            from chatting b
+                            group by to_date(substr(to_char(in_date,'yyyymm'),0,7),'yyyymm') ,chatting_account_flag,'채팅'
+                      )m
+                        
+			          where 1=1
+                    <if test="selStatus == '정산'">
+                        and m.accountflag = '정산'
+                    </if>
+                    <if test="selStatus == '미정산'">
+                        and m.accountflag = '미정산'
+                    </if>
+                    <if test="selDate != null and selDate !=''">
+                        and to_char(m.yyyymm, 'YYYYMM') = #{selDate}
+                    </if>
+                    <if test="selGubun == '온라인클래스'">
+                        and m.Gubun = '온라인클래스'
+                    </if>
+                    <if test="selGubun == '채팅'">
+                        and m.Gubun = '채팅'
+                    </if>
+					order by m.yyyymm desc, m.gubun, m.accountflag
+		
+	    
+	</select>
+	
+    
+<!--     관리자가보는 정산하기 상세 리스트 -->
+    <select id="selectAdminSalesDetail"  resultType="egovMap" parameterType="Criteria">	 <!--  egovMap :  key 에 대하여 Camel Case 변환하여 super.put-->
+		  select
+				tt.rm, tt.yyyymm, tt.trainer_id, tt.cnt, tt.sum, tt.fee, tt.realamount, tt.Gubun
+	    from
+	    	(
+	    	select rownum as rm, m.yyyymm, m.trainer_id, m.cnt, m.sum, m.fee, m.realamount, m.Gubun
+                    from(
+                        select substr(to_char(a.in_date,'yyyy-mm'),0,7)  yyyymm,
+                               b.in_user_id trainer_id,
+                               count(*) as cnt,
+                               sum(lesson_price) as sum,
+                                round(sum(lesson_price) * 0.2,-1) as fee,
+                                sum(lesson_price) - round(sum(lesson_price) * 0.2,-1) realamount,
+                               '온라인클래스'   Gubun
+                        
+                            from buy_lesson a
+                            left join lesson b on 
+                            (a.lesson_seq = b.lesson_seq)
+                            left join member c on
+                            (b.in_user_id = c.member_id)
+                            group by substr(to_char(a.in_date,'yyyy-mm'),0,7) , b.in_user_id, '온라인클래스'
+                         
+                         union all
+                         
+                          select substr(to_char(a.in_date,'yyyy-mm'),0,7)  yyyymm,
+                               b.chat_profile_id trainer_id,
+                               count(*) as cnt,
+                               count(*) * 3200 as sum,
+                               round(count(*) * 3200 * 0.2,-1) as fee,
+                               count(*) * 3200  - round(count(*) * 3200 * 0.2,-1)  realamount,
+                               '채팅'   Gubun
+                        
+                            from chatting a
+                            left join chat_profile b on 
+                            (a.chat_profile_seq = b.chat_profile_seq)
+                            group by substr(to_char(a.in_date,'yyyy-mm'),0,7) , b.chat_profile_id, '채팅'
+                        
+                        )m
+			          where m.yyyymm = #{yyyymm}
+                      and m.gubun = #{gubun}
+<!--                       and 1=1 -->
+<!--                     <if test="searchKeyword != null and searchKeyword != ''"> -->
+<!-- 					    and m.trainer_id LIKE '%' || #{searchKeyword} || '%' -->
+<!-- 					</if> -->
+					order by m.yyyymm desc, m.gubun
+					
+				)tt
+			where rm between #{rowStart} and #{rowEnd}
+			
+	</select>    
+	
+    
+<!--     정산 상세 리스트 개수 -->
+    <select id="selectAdminSalesDetailCnt" parameterType="Criteria" resultType="int">
+	 select 
+		count(*)
+		from
+		(
+		 select substr(to_char(a.in_date,'yyyy-mm'),0,7)  yyyymm,
+                               b.in_user_id trainer_id,
+                               count(*) as cnt,
+                               sum(lesson_price) as sum,
+                                round(sum(lesson_price) * 0.2,-1) as fee,
+                                sum(lesson_price) - round(sum(lesson_price) * 0.2,-1) realamount,
+                               '온라인클래스'   Gubun
+                        
+                            from buy_lesson a
+                            left join lesson b on 
+                            (a.lesson_seq = b.lesson_seq)
+                            left join member c on
+                            (b.in_user_id = c.member_id)
+                            group by substr(to_char(a.in_date,'yyyy-mm'),0,7) , b.in_user_id, '온라인클래스'
+                         
+                         union all
+                         
+                          select substr(to_char(a.in_date,'yyyy-mm'),0,7)  yyyymm,
+                               b.chat_profile_id trainer_id,
+                               count(*) as cnt,
+                               count(*) * 3200 as sum,
+                               round(count(*) * 3200 * 0.2,-1) as fee,
+                               count(*) * 3200  - round(count(*) * 3200 * 0.2,-1)  realamount,
+                               '채팅'   Gubun
+                        
+                            from chatting a
+                            left join chat_profile b on 
+                            (a.chat_profile_seq = b.chat_profile_seq)
+                            group by substr(to_char(a.in_date,'yyyy-mm'),0,7) , b.chat_profile_id, '채팅'
+                        
+                      )m
+                        
+			          where m.yyyymm = #{yyyymm}
+                      and m.gubun = #{gubun}
+<!--                       and 1=1 -->
+<!--                     <if test="searchKeyword != null and searchKeyword != ''"> -->
+<!-- 					    and m.trainer_id LIKE '%' || #{searchKeyword} || '%' -->
+<!-- 					</if> -->
+					order by m.yyyymm desc
+	    
+	</select>
+	
+    
+<!--     정산 상세리스트 총금액합계 -->
+        <select id="totalPrice" parameterType="Criteria" resultType="egovMap">
+	 select sum(m.sum) total,
+	       sum(m.fee) totalFee,
+	       sum(m.realamount) totalRealAmount
+from (
+    select substr(to_char(a.in_date,'yyyy-mm'),0,7)  yyyymm,
+                                   b.in_user_id trainer_id,
+                                   count(*) as cnt,
+                                   sum(lesson_price) as sum,
+                                    round(sum(lesson_price) * 0.2,-1) as fee,
+                                    sum(lesson_price) - round(sum(lesson_price) * 0.2,-1) realamount,
+                                   '온라인클래스'   Gubun
+                            
+                                from buy_lesson a
+                                left join lesson b on 
+                                (a.lesson_seq = b.lesson_seq)
+                                left join member c on
+                                (b.in_user_id = c.member_id)
+                                group by substr(to_char(a.in_date,'yyyy-mm'),0,7) , b.in_user_id, '온라인클래스'
+                             
+                             union all
+                             
+                              select substr(to_char(a.in_date,'yyyy-mm'),0,7)  yyyymm,
+                                   b.chat_profile_id trainer_id,
+                                   count(*) as cnt,
+                                   count(*) * 3200 as sum,
+                                   round(count(*) * 3200 * 0.2,-1) as fee,
+                                   count(*) * 3200  - round(count(*) * 3200 * 0.2,-1)  realamount,
+                                   '채팅'   Gubun
+                            
+                                from chatting a
+                                left join chat_profile b on 
+                                (a.chat_profile_seq = b.chat_profile_seq)
+                                group by substr(to_char(a.in_date,'yyyy-mm'),0,7) , b.chat_profile_id, '채팅'
+                            
+          )m
+         
+	          where m.yyyymm = #{yyyymm}
+                    and m.gubun = #{gubun}
+	    
+	</select>
+    
+        
+<!--         일괄정산시 sales 테이블에 insert -->
+	<insert id="insertSales" parameterType="SalesVO">
+	    <selectKey order="BEFORE" keyProperty="salesSeq" resultType="String">
+			SELECT NVL(MAX(TO_NUMBER(SALES_SEQ)),0)+1 FROM SALES
+		</selectKey>
+		<![CDATA[
+			INSERT INTO SALES
+			(	SALES_SEQ,
+				SALES_GUBUN,
+				SLAES_MONTH,
+				SALES_FEE,
+				IN_USER_ID,
+				IN_DATE,
+				UP_USER_ID,
+				UP_DATE
+			)
+			VALUES (#{salesSeq},
+					#{salesGubun},
+					#{slaesMonth},
+					#{salesFee},
+					#{inUserId},
+					sysdate,
+					#{upUserId},
+					sysdate)
+		]]>
+	</insert>
+	
+<!-- 	일괄정산시 buy_lesson 테이블에 update -->
+	<update id="updateBuyLesson" parameterType="BuyLessonVO">
+		update buy_lesson
+		    set class_account_flag = 'Y'
+		where to_char(in_date,'yyyy/mm') like #{yyyymm} || '%'
+		and lesson_refund_flag ='N'
+	</update>
+    
+<!-- 	일괄정산 시 chatting 테이블에 update -->
+	<update id="updateChatting" parameterType="ChattingVO">
+		update chatting
+		    set chatting_account_flag = 'Y'
+		where to_char(in_date,'yyyy/mm') like #{yyyymm} || '%'
+	</update>
+	
+	
+<!-- 	정산pdf 정보 -->
+	  <select id="selectAccountList" parameterType="egovMap" resultType="egovMap">
+		 select
+					tt.rm, tt.yyyymm, tt.trainer_id, tt.cnt, tt.sum, tt.fee, tt.realamount, tt.Gubun, tt.member_name
+		    from
+		    	(
+		    	select rownum as rm, m.yyyymm, m.trainer_id, m.cnt, m.sum, m.fee, m.realamount, m.Gubun, m.member_name
+	                    from(
+	                        select substr(to_char(a.in_date,'yyyy-mm'),0,7)  yyyymm,
+	                               b.in_user_id trainer_id,
+	                               c.member_name,
+	                               count(*) as cnt,
+	                               sum(lesson_price) as sum,
+	                                round(sum(lesson_price) * 0.2,-1) as fee,
+	                                sum(lesson_price) - round(sum(lesson_price) * 0.2,-1) realamount,
+	                               '온라인클래스'   Gubun
+	                        
+	                            from buy_lesson a
+	                            left join lesson b on 
+	                            (a.lesson_seq = b.lesson_seq)
+	                            left join member c on
+	                            (b.in_user_id = c.member_id)
+	                            group by substr(to_char(a.in_date,'yyyy-mm'),0,7) , b.in_user_id, '온라인클래스' ,c.member_name
+	                         
+	                         union all
+	                         
+	                          select substr(to_char(a.in_date,'yyyy-mm'),0,7)  yyyymm,
+	                               b.chat_profile_id trainer_id,
+	                               c.member_name,
+	                               count(*) as cnt,
+	                               count(*) * 3200 as sum,
+	                               round(count(*) * 3200 * 0.2,-1) as fee,
+	                               count(*) * 3200  - round(count(*) * 3200 * 0.2,-1)  realamount,
+	                               '채팅'   Gubun
+	                        
+	                            from chatting a
+	                            left join chat_profile b on 
+	                            (a.chat_profile_seq = b.chat_profile_seq)
+	                            left join member c on
+	                            (b.chat_profile_id = c.member_id)
+	                            group by substr(to_char(a.in_date,'yyyy-mm'),0,7) , b.chat_profile_id, '채팅' ,c.member_name
+	                        
+	                        )m
+				          where m.yyyymm = #{yyyymm}
+                    	and m.gubun = #{gubun}
+						order by m.yyyymm desc, m.gubun
+						
+					)tt
+			
+	    
+	</select>
+	
+<!-- 	  정산 pdf 합계정보 -->
+<select id="selectAccountSumList" parameterType="egovMap" resultType="egovMap">
+		 select sum(m.sum) total,
+	       sum(m.fee) totalFee,
+	       sum(m.realamount) totalRealAmount,
+	       sum(m.cnt) totalCnt
+from (
+    select substr(to_char(a.in_date,'yyyy-mm'),0,7)  yyyymm,
+                                   b.in_user_id trainer_id,
+                                   count(*) as cnt,
+                                   sum(lesson_price) as sum,
+                                    round(sum(lesson_price) * 0.2,-1) as fee,
+                                    sum(lesson_price) - round(sum(lesson_price) * 0.2,-1) realamount,
+                                   '온라인클래스'   Gubun
+                            
+                                from buy_lesson a
+                                left join lesson b on 
+                                (a.lesson_seq = b.lesson_seq)
+                                left join member c on
+                                (b.in_user_id = c.member_id)
+                                group by substr(to_char(a.in_date,'yyyy-mm'),0,7) , b.in_user_id, '온라인클래스'
+                             
+                             union all
+                             
+                              select substr(to_char(a.in_date,'yyyy-mm'),0,7)  yyyymm,
+                                   b.chat_profile_id trainer_id,
+                                   count(*) as cnt,
+                                   count(*) * 3200 as sum,
+                                   round(count(*) * 3200 * 0.2,-1) as fee,
+                                   count(*) * 3200  - round(count(*) * 3200 * 0.2,-1)  realamount,
+                                   '채팅'   Gubun
+                            
+                                from chatting a
+                                left join chat_profile b on 
+                                (a.chat_profile_seq = b.chat_profile_seq)
+                                group by substr(to_char(a.in_date,'yyyy-mm'),0,7) , b.chat_profile_id, '채팅'
+                            
+          )m
+         
+	          where m.yyyymm = #{yyyymm}
+                    and m.gubun = #{gubun}
+			
+	    
+	</select>
+	
+</mapper>

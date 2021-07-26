@@ -1,0 +1,370 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+
+<mapper namespace="kr.or.profit.mapper.AdminMemberMapper">
+
+    <!-- 회원관리 리스트 -->
+    <select id="selectAdminMemberList" parameterType="Criteria" resultType="MemberVO">
+        select	tt.*
+        from
+        (
+        select  rownum as rm, tbl.*
+        from
+        (
+		select  member_id, 
+		        member_name, 
+		        case when member_gender = 'F' then '여' else '남' end as member_gender, 
+		        member_gubun, 
+		        in_date,
+		        case when member_id in (select member_id from blacklist) then '블랙리스트' else '정상회원' end as blacklist_flag
+		from member
+		where member_gubun != 'A'
+			<if test="selGubun != null and selGubun != '' ">
+	            <choose>
+		            <when test='selGubun.equals("U")'>
+		                and member_gubun = 'U'
+		            </when>
+		            <when test='selGubun.equals("T")'>
+		                and member_gubun = 'T'
+		            </when>
+	            </choose>
+            </if>
+            <if test="selStatus != null and selStatus != '' ">
+	            <choose>
+		            <when test='selStatus.equals("B")'>
+		                and member_id in (select member_id from blacklist)
+		            </when>
+		            <when test='selStatus.equals("N")'>
+		                and member_id not in (select member_id from blacklist)
+		            </when>
+	            </choose>
+            </if>
+            <if test="selIdentity != null and selIdentity != '' ">
+			    <choose>
+			        <when test='selIdentity.equals("이름")'>
+			            and member_name like '%' || #{searchKeyword} || '%'
+			        </when>
+			        <otherwise>
+			            and member_id like '%' || #{searchKeyword} || '%'
+			        </otherwise>
+			    </choose>
+			</if>
+		order by in_date desc
+		) tbl
+		) tt
+		where tt.rm between #{rowStart} and #{rowEnd}
+    </select>
+
+    <!-- 회원관리 리스트 전체 개수 -->
+    <select id="selectMemberListCnt" parameterType="Criteria" resultType="int">
+        select count(*)
+        from member
+		where member_gubun != 'A'
+			<if test="selGubun != null and selGubun != '' ">
+	            <choose>
+		            <when test='selGubun.equals("U")'>
+		                and member_gubun = 'U'
+		            </when>
+		            <when test='selGubun.equals("T")'>
+		                and member_gubun = 'T'
+		            </when>
+	            </choose>
+            </if>
+            <if test="selStatus != null and selStatus != '' ">
+	            <choose>
+		            <when test='selStatus.equals("B")'>
+		                and member_id in (select member_id from blacklist)
+		            </when>
+		            <when test='selStatus.equals("N")'>
+		                and member_id not in (select member_id from blacklist)
+		            </when>
+	            </choose>
+            </if>
+            <if test="selIdentity != null and selIdentity != '' ">
+			    <choose>
+			        <when test='selIdentity.equals("이름")'>
+			            and member_name like '%' || #{searchKeyword} || '%'
+			        </when>
+			        <otherwise>
+			            and member_id like '%' || #{searchKeyword} || '%'
+			        </otherwise>
+			    </choose>
+			</if>
+		order by in_date desc
+    </select>
+    
+    <!-- 모달 -->
+    <select id="adminMemberDetail" parameterType="String" resultType="MemberVO">
+        select  m.member_id, 
+		        m.member_name, 
+		        m.member_nickname,
+		        substr(m.member_mobile,0,3)||'-'||substr(m.member_mobile,4,4)||'-'||substr(m.member_mobile,8,4) as member_mobile,
+		        m.member_email,
+		        case when m.member_route = 'U' then '홈페이지 회원가입' else '카카오 회원가입' end as member_route,
+		        case when m.member_gender = 'F' then '여성' else '남성' end as member_gender, 
+		        case when m.member_gubun = 'U' then '일반회원' else '트레이너' end as member_gubun, 
+		        m.in_date,
+		        case when m.member_id in (select member_id from blacklist) then '블랙리스트' else '정상회원' end as blacklist_flag,
+		        b.blacklist_reason,
+		        b.in_date as b_date
+		from member m
+		left outer join blacklist b
+		on (m.member_id = b.member_id)
+		where m.member_id = #{memberId}
+    </select>
+    
+    <!-- 블랙리스트에 추가 -->
+    <insert id="insertBlacklist" parameterType="MemberVO">
+        insert into blacklist(blacklist_seq, member_id, blacklist_reason,in_user_id, in_date,up_user_id, up_date )
+        values 
+        (
+        	(select nvl(max(to_number(blacklist_seq)),0)+1 from blacklist),
+        	#{memberId},
+        	#{blacklistReason},
+        	(select member_id from member where member_gubun = 'A'),
+        	sysdate,
+        	(select member_id from member where member_gubun = 'A'),
+        	sysdate
+        )
+    </insert>
+    
+    <!-- 블랙리스트 삭제 -->
+    <delete id="deleteBlacklist" parameterType="String">
+        delete from blacklist where member_id = #{memberId}
+    </delete>
+    
+    
+    <!-- 트레이너 프로세스 디테일 -->
+    <select id="selectProcessDetailBySeq" parameterType="String" resultType="ProcessVO">
+        select  p.process_seq, p.member_id, p.file_seq, p.trainer_award, p.trainer_career, 
+		        p.trainer_gym, p.process_status, p.process_finish_date, p.admin_memo, p.result_reason,
+		        p.in_date, p.up_date,
+		        m.member_name, m.member_mobile, m.member_email, m.member_gender
+		from process p
+		inner join member m
+		on (p.member_id = m.member_id)
+		where p.process_seq = #{memberId}
+    </select>
+    
+    <!-- 관리자 메모 update -->
+    <update id="updateAdminMemo" parameterType="ProcessVO">
+        update process
+        set admin_memo = #{adminMemo}
+        where process_seq = #{processSeq}
+    </update>
+    
+    <!-- 최종상태변경-승인,보완,취소 -->
+	<update id="updateProcessStatus" parameterType="ProcessVO">
+	    update process
+	    set result_reason = #{resultReason, jdbcType=VARCHAR},
+	    	process_status = #{processStatus},
+	    	up_date = sysdate
+	    <if test='processStatus == "C" '>
+			, process_finish_date = sysdate + 14
+		</if>
+	    
+	    where process_seq = #{processSeq}
+	</update>    
+    
+	<!-- 승인단계, trainer 테이블에 insert -->
+	<insert id="insertTrainerInfo" parameterType="ProcessVO">
+	    insert into trainer(trainer_seq, process_seq, trainer_gym, trainer_award, trainer_career, in_user_id, in_date, up_user_id, up_date)
+		values (
+		        (SELECT NVL(MAX(TO_NUMBER(trainer_seq)),0)+1 FROM trainer),
+		        #{processSeq},
+		        #{trainerGym},
+		        #{trainerAward},
+		        #{trainerCareer},
+		        #{memberId},
+		        sysdate,
+		        #{memberId},
+		        sysdate
+		        )
+	</insert>
+	
+	<!-- 승인단계 member 테이블 구분 T로 업데이트 -->
+	<update id="updateGubunTrainer" parameterType="ProcessVO">
+	    update member
+	    set member_gubun = 'T'
+	    where member_id = #{memberId}
+	</update>
+	
+    
+	<!-- 트레이너 프로세스 디테일-첨부파일 가져오기-->
+    <select id="selectProcessFile" parameterType="String" resultType="egovMap">
+	    select file_seq, file_detail_seq, file_real_name, file_path 
+		from attach_file
+		where file_seq = #{fileSeq}
+	</select>
+    
+    <!--1. 관리자가 선택한 파일 삭제 --> 
+    <delete id="deleteFileDetailSeq" parameterType="FileVO">
+       delete attach_file
+       where file_seq = #{fileSeq} and file_detail_seq = #{fileDetailSeq}
+    </delete>
+	
+    <!-- 파일상세고유번호 조회 -->
+	<select id="selectFileDetailSeq" parameterType="String" resultType="String">
+	    select NVL(max(to_number(file_detail_seq)),0)
+	    from attach_file
+	    where file_seq = #{fileSeq}
+	    
+	</select>    
+    
+    <!--2. 관리자 파일테이블에 정보 insert --> 
+	<insert id="insertFilebyAdmin" parameterType="java.util.Map">
+		<foreach collection="list" item="item" index="index"
+			open="INSERT ALL" close="SELECT * FROM DUAL" separator=" ">
+			into
+			attach_file
+			(
+				file_seq,
+				file_detail_seq,
+				file_real_name,
+				file_save_name,
+				file_path,
+				in_user_id,
+				in_date,
+				up_user_id,
+				up_date
+			)
+			values
+
+			(
+				#{item.fileSeq},
+				#{item.fileDetailSeq},
+				#{item.fileRealName},
+				#{item.fileSaveName},
+				#{item.filePath},
+				#{item.inUserId},
+				sysdate,
+				#{item.upUserId, jdbcType=VARCHAR},
+				sysdate
+			)
+
+
+		</foreach>
+	</insert>
+    
+	<!-- 3.process테이블에 정보 업데이트 -->
+	<update id="updateProcessInfo" parameterType="ProcessVO">
+	    update process
+	    set trainer_gym = #{trainerGym},
+	    	trainer_award = #{trainerAward},
+	    	trainer_career = #{trainerCareer}
+	    where process_seq = #{processSeq}
+	</update>
+   
+    
+    <!-- 관리자-트레이너승인, 숫자 보여주는 표 -->
+	<select id="selectProcessNumberList" resultType="ProcessVO">
+	    select status_a,status_b,status_c, status_date
+		from    
+		    (
+		    select  (select count(*) from process where process_status = 'A') as status_a,
+		            (select count(*) from process where process_status = 'B') as status_b,
+		            (select count(*) from process where process_status = 'C') as status_c,
+		            (select count(*) from process where to_char(up_date, 'YYYY/MM/DD') = to_char(sysdate, 'YYYY/MM/DD')) status_date,
+		            rownum as rm
+		    from process
+		    ) tbl
+		where rm = 1
+	</select>
+   	
+	
+	<!-- 관리자-트레이너승인, 리스트 부분 -->
+ 	<select id="selectProcessList" parameterType="Criteria" resultType="egovMap">
+ 	    
+ 	    select	tt.rm, tt.process_seq, tt.member_id,
+ 	    		tt.member_name,
+ 	    		tt.process_status, tt.process_finish_date,
+				tt.in_user_id, tt.in_date, tt.up_user_id, tt.up_date
+ 	    from
+ 	    	(
+	 	    select 	rownum as rm, tbl.process_seq, tbl.member_id,
+	 	    		tbl.member_name,
+	 	    		tbl.process_status, tbl.process_finish_date,
+					tbl.in_user_id, tbl.in_date, tbl.up_user_id, tbl.up_date
+	 	    from ( 
+		 	    select  process_seq, member_id,
+				        (select member_name from member where process.member_id = member_id) as member_name, 
+				        process_status, 
+				        <![CDATA[
+				        case when process_finish_date < (select sysdate-1 from dual) then null
+				        else process_finish_date end as process_finish_date,
+				        ]]>
+				        in_user_id, in_date, up_user_id, up_date
+				from    process
+				where	1=1
+						<if test="selStatus != null and selStatus != '' ">
+						    and process_status = #{selStatus}
+						</if>
+						<if test="selDate != null and selDate != '' ">
+						    <choose>
+						        <when test='selStatus.equals("A")'>
+						            and to_char(in_date, 'YYYYMMDD') = #{selDate}
+						        </when>
+						        <otherwise>
+						            and to_char(up_date, 'YYYYMMDD') = #{selDate}
+						        </otherwise>
+						    </choose>
+						</if>
+						<if test="selIdentity != null and selIdentity != '' ">
+						    <choose>
+						        <when test='selIdentity.equals("이름")'>
+						            and member_id like '%' || #{searchKeyword} || '%'
+						        </when>
+						        <otherwise>
+						            and (select member_name from member where process.member_id = member_id) like '%' || #{searchKeyword} || '%'
+						        </otherwise>
+						    </choose>
+						</if>
+				order by in_date desc
+			) tbl
+		) tt
+		where tt.rm between #{rowStart} and #{rowEnd}
+		
+ 	</select>
+ 	
+ 	
+ 	<!-- 페이징용 전체 수 cnt -->
+ 	<select id="selectProcessListCnt" parameterType="Criteria" resultType="int">
+ 	    select count(*)
+   		from    process
+		where	1=1
+				<if test="selStatus != null and selStatus != '' ">
+				    and process_status = #{selStatus}
+				</if>
+				<if test="selDate != null and selDate != '' ">
+				    <choose>
+				        <when test='selStatus.equals("신청")'>
+				            and to_char(in_date, 'YYYYMMDD') = #{selDate}
+				        </when>
+				        <otherwise>
+				            and to_char(up_date, 'YYYYMMDD') = #{selDate}
+				        </otherwise>
+				    </choose>
+				</if>
+				<if test="selIdentity != null and selDate != '' ">
+				    <choose>
+				        <when test='selIdentity.equals("이름")'>
+				            and member_id like '%' || #{searchKeyword} || '%'
+				        </when>
+				        <otherwise>
+				            and (select member_name from member where process.member_id = member_id) like '%' || #{searchKeyword} || '%'
+				        </otherwise>
+				    </choose>
+				</if>
+		order by in_date desc
+ 	</select>
+ 	
+    <!-- 관라지-신청서 검토로 update -->
+    <update id="updateStatusB" parameterType="String">
+        update process
+		set process_status = 'B',
+		    up_date = sysdate
+		where process_seq = #{processSeq}
+    </update>
+ 	
+ 	
+</mapper>

@@ -1,0 +1,627 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="kr.or.profit.mapper.RecipeMapper">
+
+	<resultMap id="qnaVO" type="kr.or.profit.vo.QnaVO">
+		<result property="communitySeq" column="COMMUNITY_SEQ"/>
+		<result property="commonSeq" column="COMMON_SEQ"/>
+		<result property="communityCategorySeq" column="COMMUNITY_CATEGORY_SEQ"/>
+		<result property="fileSeq" column="FILE_SEQ"/>
+		<result property="commonTitle" column="COMMON_TITLE"/>
+		<result property="commonContent" column="COMMON_CONTENT"/>
+		<result property="commonHit" column="COMMON_HIT"/>
+		<result property="commonDelFlag" column="COMMON_DEL_FLAG"/>
+		<result property="inUserId" column="IN_USER_ID"/>
+		<result property="inDate" column="IN_DATE"/>
+		<result property="upUserId" column="UP_USER_ID"/>
+		<result property="upDate" column="UP_DATE"/>
+	</resultMap>
+
+<!-- 레시피 페이징 처리 -->
+	<select id="recipeSelectBoardCnt" parameterType="Criteria" resultType="int">
+	    SELECT
+		    COUNT(*)
+		FROM
+		    COMMUNITY A
+
+		WHERE
+		    A.COMMON_DEL_FLAG = 'N'
+		AND
+		    A.COMMON_SEQ = '6'
+		AND
+		    1=1
+	<if test="keyword != null and keyword != '' ">
+		AND
+			(A.COMMON_TITLE LIKE '%' || #{keyword} || '%'
+		OR
+		    A.IN_USER_ID LIKE '%' || #{keyword} || '%')
+	</if>
+	</select>
+<!-- 	글목록+페이징 -->
+	<select id="recipeList" parameterType="Criteria" resultType="egovMap">
+		select
+			tt.rm, tt.community_seq, tt.common_hit, tt.community_category_seq, tt.file_seq, tt.board_good,
+            tt.board_book, tt.good_flag,
+            tt.book_flag, tt.common_title,
+            tt.common_content, tt.in_user_id, TO_CHAR(tt.in_date,'YYYY-MM-DD') in_date, tt.file_path,
+            tt.board_reply, tt.community_category_name
+	    from
+	    	(
+	    	select rownum as rm, tbl.community_seq , tbl.common_hit, tbl.community_category_seq ,
+					tbl.file_seq, tbl.board_good, tbl.board_book, tbl.good_flag,
+					tbl.book_flag, tbl.common_title,
+					tbl.common_content, tbl.in_user_id, tbl.in_date, tbl.file_path,
+					tbl.board_reply, tbl.community_category_name
+			from (
+			    SELECT A.COMMUNITY_SEQ,A.COMMUNITY_CATEGORY_SEQ,A.FILE_SEQ,
+			            (select count(*) from bookgood bk where bookgood_gubun = 'G' and bk.community_seq = a.community_seq) as board_good,
+			            (select count(*) from bookgood bk where bookgood_gubun = 'B' and bk.community_seq = a.community_seq) as board_book,
+			            (select count(*) from bookgood bk where member_id=#{memberId} and bookgood_gubun = 'G' and bk.community_seq = a.community_seq) as good_flag,
+			            (select count(*) from bookgood bk where member_id=#{memberId} and bookgood_gubun = 'B' and bk.community_seq = a.community_seq) as book_flag,
+			          CASE WHEN LENGTH(A.COMMON_TITLE) > 15 THEN SUBSTR(A.COMMON_TITLE, 0, 15) || '...' ELSE A.COMMON_TITLE END AS COMMON_TITLE,
+			          A.COMMON_CONTENT,
+			          A.COMMON_HIT,
+			          A.IN_USER_ID,
+			          A.IN_DATE,
+			          B.FILE_PATH,
+			          NVL(D.BOARD_REPLY,0) AS BOARD_REPLY,
+			          E.COMMUNITY_CATEGORY_NAME
+			    FROM
+			          COMMUNITY A
+			          LEFT JOIN
+			          ATTACH_FILE B ON
+			          (A.FILE_SEQ = B.FILE_SEQ)
+			          LEFT JOIN
+			          (
+			          SELECT COMMUNITY_SEQ,
+			          COUNT(*) AS BOARD_REPLY
+			          FROM REPLY
+			          WHERE REPLY_DEL_FLAG='N'
+			          GROUP BY
+			          COMMUNITY_SEQ
+			          ) D ON
+			          (A.COMMUNITY_SEQ = D.COMMUNITY_SEQ)
+			          LEFT JOIN
+			          COMMUNITY_CATEGORY E ON
+			          (A.COMMUNITY_CATEGORY_SEQ =
+			          E.COMMUNITY_CATEGORY_SEQ)
+			    WHERE
+			          A.COMMON_SEQ = 6 AND A.COMMON_DEL_FLAG = 'N'
+			          AND 1=1
+					<if test="keyword != null and keyword != '' ">
+					    AND (A.common_title LIKE '%' || #{keyword} || '%'
+					    OR A.IN_USER_ID LIKE '%' || #{keyword} || '%')
+					</if>
+
+	 			<!-- order by절-->
+					<trim prefix="ORDER BY" prefixOverrides="," >
+				    <choose>
+					    <when test="selLev == null or selLev == ''">
+							TO_NUMBER(A.community_seq) DESC
+						</when>
+					    <otherwise>
+					        <choose>
+					            <when test="selLev == '조회순'">
+					             , TO_NUMBER(A.common_hit) DESC, TO_NUMBER(A.community_seq)
+						        </when>
+						        <when test="selLev == '좋아요순'">
+								 , TO_NUMBER(board_good) DESC, TO_NUMBER(A.community_seq)
+						        </when>
+						         <when test="selLev == '댓글순'">
+								 , TO_NUMBER(board_reply) DESC, TO_NUMBER(A.community_seq)
+						        </when>
+					        </choose>
+					      </otherwise>
+				    </choose>
+					</trim>
+				) tbl
+			) tt
+		where tt.rm between #{rowStart} and #{rowEnd}
+	</select>
+
+<!-- 	글상세보기 -->
+	<select id="recipeDetail" resultType="egovMap">
+		SELECT
+			(SELECT
+                COUNT(*)
+            FROM
+                REPLY B
+            WHERE
+                A.COMMUNITY_SEQ = B.COMMUNITY_SEQ
+            AND
+                B.REPLY_DEL_FLAG = 'N'
+                ) CNT,
+		    A.COMMUNITY_SEQ,
+			A.COMMON_SEQ,
+			A.COMMUNITY_CATEGORY_SEQ,
+			A.FILE_SEQ,
+			A.COMMON_TITLE,
+			TO_CHAR(A.COMMON_CONTENT) COMMON_CONTENT,
+			A.COMMON_HIT,
+			A.COMMON_DEL_FLAG,
+			A.IN_USER_ID,
+			TO_CHAR(A.IN_DATE, 'YYYY-MM-DD') IN_DATE,
+			A.UP_USER_ID,
+			TO_CHAR(A.UP_DATE, 'YYYY-MM-DD') IN_DATE
+		FROM
+		    COMMUNITY A
+		WHERE
+		    A.COMMUNITY_SEQ = #{communitySeq}
+	</select>
+
+<!-- 	글등록 -->
+	<insert id="recipeAddInsert" parameterType="hashMap">
+		INSERT INTO COMMUNITY
+					(
+						COMMUNITY_SEQ,
+		                COMMON_SEQ,
+		                FILE_SEQ,
+		                COMMON_TITLE,
+		                COMMON_CONTENT,
+		                COMMON_HIT,
+		                COMMON_DEL_FLAG,
+		                IN_USER_ID,
+		                IN_DATE,
+		                UP_USER_ID,
+		                UP_DATE	)
+				VALUES
+			(
+				(SELECT
+		            NVL(MAX(TO_NUMBER(COMMUNITY_SEQ)),0) AS COMMUNITY_SEQ
+		        FROM
+		            COMMUNITY)+1,
+				'6',
+				#{tumnalil_img},
+				#{commonTitle},
+				#{commonContent},
+				'0',
+				'N',
+				#{memberId},
+				SYSDATE,
+				#{memberId},
+				SYSDATE
+						)
+	</insert>
+
+<!-- 	글수정 -->
+	<update id="recipeModUpdate" parameterType="hashMap" >
+		UPDATE
+		    COMMUNITY
+		SET
+		    COMMON_TITLE    = #{commonTitle},
+		    COMMON_CONTENT  = #{commonContent},
+		    UP_DATE         = SYSDATE
+		WHERE
+		    COMMUNITY_SEQ = #{communitySeq}
+	</update>
+
+<!-- 	글 삭제 -->
+	<update id="recipeDelete" parameterType="hashMap" >
+		UPDATE
+		    COMMUNITY
+		SET
+		    COMMON_DEL_FLAG = 'Y'
+		WHERE
+		    COMMUNITY_SEQ = #{communitySeq}
+	</update>
+
+<!-- 	조회수 증가 -->
+	<update id="recipeCommonHit" parameterType="hashMap" >
+		UPDATE
+		    COMMUNITY
+		SET
+		    COMMON_HIT = COMMON_HIT+1
+		WHERE
+		    COMMUNITY_SEQ = #{communitySeq}
+	</update>
+
+
+
+	<!-- 	댓글등록 -->
+	<insert id="recipeReply" parameterType="hashMap">
+		INSERT INTO reply
+			(
+				REPLY_SEQ,
+				COMMUNITY_SEQ,
+				REPLY_CONTENT,
+				REPLY_DEL_FLAG,
+				REPLY_PARENT_SEQ,
+				REPLY_DEPTH,
+				IN_USER_ID,
+				IN_DATE,
+				UP_USER_ID,
+				UP_DATE	)
+		VALUES
+			(
+				(SELECT
+		            NVL(MAX(TO_NUMBER(REPLY_SEQ)),0) AS REPLY_SEQ
+		        FROM
+		            REPLY)+1,
+				#{communitySeq},
+				#{replyContent},
+				'N',
+				'0',
+				'0',
+				#{memberId},
+				SYSDATE,
+				#{memberId},
+				SYSDATE
+						)
+	</insert>
+
+	<!-- 	댓글목록 -->
+	<select id="recipeDetailReply" resultType="hashMap">
+		SELECT
+		    REPLY_SEQ,
+		    COMMUNITY_SEQ,
+		    REPLY_CONTENT,
+		    REPLY_DEL_FLAG,
+		    REPLY_PARENT_SEQ,
+		    REPLY_DEPTH,
+		    A.IN_USER_ID,
+		    B.FILE_SEQ,
+		    C.FILE_PATH,
+		    TO_CHAR(A.IN_DATE, 'YYYY-MM-DD') IN_DATE
+		FROM
+		    REPLY A
+		    LEFT JOIN MEMBER B ON (A.IN_USER_ID = B.IN_USER_ID)
+		    LEFT JOIN ATTACH_FILE C ON(B.FILE_SEQ = C.FILE_SEQ)
+		WHERE
+		    COMMUNITY_SEQ = #{communitySeq}
+		AND
+			REPLY_DEL_FLAG = 'N'
+		AND
+			REPLY_DEPTH = '0'
+        GROUP BY
+            REPLY_SEQ,
+		    COMMUNITY_SEQ,
+		    REPLY_CONTENT,
+		    REPLY_DEL_FLAG,
+		    REPLY_PARENT_SEQ,
+		    REPLY_DEPTH,
+		    A.IN_USER_ID,
+		    B.FILE_SEQ,
+		    C.FILE_PATH,
+            A.IN_DATE
+		ORDER by
+           A.IN_DATE DESC
+	</select>
+
+	<!-- 	댓글 삭제 -->
+	<update id="recipeReplyDelete" parameterType="hashMap" >
+		UPDATE
+		    REPLY
+		SET
+		    REPLY_DEL_FLAG = 'Y'
+		WHERE
+		    REPLY_SEQ = #{replySeq}
+	</update>
+
+	<!-- 	대 댓 글등록 -->
+	<insert id="recipeReplyAdd" parameterType="hashMap">
+		INSERT INTO REPLY
+			(
+				REPLY_SEQ,
+				COMMUNITY_SEQ,
+				REPLY_CONTENT,
+				REPLY_DEL_FLAG,
+				REPLY_PARENT_SEQ,
+				REPLY_DEPTH,
+				IN_USER_ID,
+				IN_DATE,
+				UP_USER_ID,
+				UP_DATE	)
+		VALUES
+			(
+				(SELECT
+		            NVL(MAX(TO_NUMBER(REPLY_SEQ)),0) AS REPLY_SEQ
+		        FROM
+		            REPLY)+1,
+				#{communitySeq},
+				#{replyContent},
+				'N',
+				#{replySeq},
+				'1',
+				#{memberId},
+				SYSDATE,
+				#{memberId},
+				SYSDATE
+						)
+	</insert>
+
+	<!-- 	대 댓글목록 -->
+	<select id="recipeDetailReplyList" resultType="hashMap">
+		SELECT
+		    REPLY_SEQ,
+		    COMMUNITY_SEQ,
+		    REPLY_CONTENT,
+		    REPLY_DEL_FLAG,
+		    REPLY_PARENT_SEQ,
+		    REPLY_DEPTH,
+		    A.IN_USER_ID,
+		    B.FILE_SEQ,
+		    C.FILE_PATH,
+		    TO_CHAR(A.IN_DATE, 'YYYY-MM-DD') IN_DATE
+		FROM
+		    REPLY A
+		    LEFT JOIN MEMBER B ON (A.IN_USER_ID = B.IN_USER_ID)
+		    LEFT JOIN ATTACH_FILE C ON(B.FILE_SEQ = C.FILE_SEQ)
+		WHERE
+			COMMUNITY_SEQ = #{communitySeq}
+		AND
+			REPLY_DEPTH = '1'
+		AND
+			REPLY_DEL_FLAG = 'N'
+        GROUP BY
+            REPLY_SEQ,
+		    COMMUNITY_SEQ,
+		    REPLY_CONTENT,
+		    REPLY_DEL_FLAG,
+		    REPLY_PARENT_SEQ,
+		    REPLY_DEPTH,
+		    A.IN_USER_ID,
+		    B.FILE_SEQ,
+		    C.FILE_PATH,
+            A.IN_DATE
+		ORDER by
+            A.IN_DATE DESC
+
+	</select>
+
+	<!-- 	로그인한 회원정보 -->
+	<select id="recipeDetailMember" resultType="hashMap">
+		SELECT
+		    A.MEMBER_ID,
+		    B.FILE_PATH,
+		    A.MEMBER_PWD,
+		    A.MEMBER_NAME,
+		    A.MEMBER_NICKNAME,
+		    A.MEMBER_MOBILE,
+		    A.MEMBER_GENDER,
+		    A.MEMBER_HEIGHT,
+		    A.MEMBER_WEIGHT,
+		    A.MEMBER_EMAIL,
+		    A.MEMBER_GUBUN,
+		    A.MEMBER_ROUTE,
+		    A.IN_USER_ID,
+		    A.IN_DATE,
+		    A.UP_USER_ID,
+		    A.UP_DATE
+		FROM
+	   	 MEMBER A, (
+		                SELECT
+		                    A.FILE_PATH
+		                FROM
+		                    ATTACH_FILE A, MEMBER B
+		                WHERE
+		                    A.FILE_SEQ = B.FILE_SEQ
+		                AND
+		                   B.member_ID = #{memberId}
+		                ) B
+		WHERE
+		    A.member_id = #{memberId}
+	</select>
+
+<!-- 	파일업로드 -->
+	<insert id="imgFile" parameterType="hashMap">
+		INSERT INTO ATTACH_FILE
+		    (
+		    FILE_SEQ,
+			FILE_DETAIL_SEQ,
+			FILE_REAL_NAME,
+			FILE_SAVE_NAME,
+			FILE_PATH,
+		    IN_USER_ID,
+		    IN_DATE,
+		    UP_USER_ID,
+		    UP_DATE
+		    )
+		values
+		    (
+		    (SELECT
+		        NVL(MAX(TO_NUMBER(FILE_SEQ)),0) AS FILE_SEQ
+		    FROM
+		        ATTACH_FILE)+1,
+		    '1',
+		    #{fileRealName},
+		    #{filesavename},
+		    #{imgFile},
+		    #{memberId},
+		    SYSDATE,
+		    #{memberId},
+		    SYSDATE
+		    )
+
+	</insert>
+
+<!-- 	파일번호확인 -->
+	<select id="imgcnt" resultType="String">
+		SELECT
+		     NVL(MAX(TO_NUMBER(FILE_SEQ)),0) AS FILE_SEQ
+		FROM
+		    ATTACH_FILE
+
+	</select>
+
+<!-- 	조회순 글 -->
+	<select id="recipeTopList" parameterType="String" resultType="egovMap">
+	    <![CDATA[
+		SELECT
+		    A.RNUM,
+		    (SELECT
+		        COUNT(*)
+		    FROM
+		        REPLY B
+		    WHERE
+		        A.COMMUNITY_SEQ = B.COMMUNITY_SEQ
+		        ) CNT,
+            (select count(*) from bookgood bk where bookgood_gubun = 'G' and bk.community_seq = A.community_seq) as board_good,
+            (select count(*) from bookgood bk where bookgood_gubun = 'B' and bk.community_seq = A.community_seq) as board_book,
+            (select count(*) from bookgood bk where member_id=#{memberId} and bookgood_gubun = 'G' and bk.community_seq = A.community_seq) as good_flag,
+            (select count(*) from bookgood bk where member_id=#{memberId} and bookgood_gubun = 'B' and bk.community_seq = A.community_seq) as book_flag,
+		    A.COMMUNITY_SEQ,
+		    C.FILE_PATH,
+		    CASE
+		    WHEN LENGTH(A.COMMON_TITLE) > 15 THEN SUBSTR(A.COMMON_TITLE, 0, 15) ||'...'
+		    ELSE A.COMMON_TITLE
+		    END AS COMMON_TITLE,
+		    A.COMMON_CONTENT,
+		    A.COMMON_HIT,
+		    A.IN_USER_ID,
+		    TO_CHAR(A.IN_DATE, 'YYYY-MM-DD') IN_DATE
+		FROM
+
+		    (SELECT ROW_NUMBER() OVER(ORDER BY TO_NUMBER(COMMON_HIT) DESC) RNUM,
+		        COMMUNITY_SEQ,
+		        FILE_SEQ,
+		        COMMON_TITLE,
+		        COMMON_CONTENT,
+		        COMMON_HIT,
+		        IN_USER_ID,
+		        IN_DATE
+		    FROM
+		        COMMUNITY
+		    WHERE
+		        COMMON_SEQ = '6'
+		    AND
+		        COMMON_DEL_FLAG = 'N'
+		    ORDER BY
+		        TO_NUMBER(COMMON_HIT) DESC) A
+		    LEFT JOIN ATTACH_FILE C ON (A.FILE_SEQ = C.FILE_SEQ)
+		WHERE A.RNUM<=5
+		]]>
+	</select>
+
+<!-- 	최신글 -->
+	<select id="recipeNewList" resultType="egovMap">
+	    <![CDATA[
+	    SELECT A.RN, A.COMMUNITY_SEQ, A.FILE_SEQ,
+	    CASE
+	    WHEN LENGTH(A.COMMON_TITLE) > 15 THEN SUBSTR(A.COMMON_TITLE, 0, 15) ||'...'
+		ELSE A.COMMON_TITLE
+		END AS COMMON_TITLE,
+	    B.FILE_PATH,
+	    TO_CHAR(A.IN_DATE, 'YYYY-MM-DD')IN_DATE
+		FROM
+		(
+		SELECT ROWNUM AS RN, COMMUNITY_SEQ, FILE_SEQ, COMMON_TITLE, IN_DATE
+		FROM
+		(
+		SELECT COMMUNITY_SEQ, FILE_SEQ, COMMON_TITLE, IN_DATE
+		FROM COMMUNITY
+		WHERE COMMON_SEQ = 6 AND COMMON_DEL_FLAG = 'N'
+		ORDER BY IN_DATE DESC
+		)
+		WHERE ROWNUM <= 5
+		) A
+		LEFT JOIN
+		ATTACH_FILE B ON
+		(A.FILE_SEQ = B.FILE_SEQ)
+		ORDER BY RN ASC
+		]]>
+	</select>
+<!-- 	인기글(좋아요) -->
+	<select id="recipeGoodList" resultType="egovMap">
+	    <![CDATA[
+	    select *
+        from(
+        select rownum as rn, community_seq, cnt, common_title, in_date, file_seq, file_path
+        from
+        (SELECT D.COMMUNITY_SEQ, D.CNT,
+		CASE
+		WHEN LENGTH(D.COMMON_TITLE) > 15 THEN SUBSTR(D.COMMON_TITLE, 0, 15) ||'...'
+		ELSE D.COMMON_TITLE
+		END AS COMMON_TITLE,
+		D.IN_DATE, E.FILE_SEQ, E.FILE_PATH
+		FROM
+		(
+		SELECT B.COMMUNITY_SEQ, B.CNT, C.COMMON_TITLE,  C.FILE_SEQ, C.IN_DATE
+		FROM
+		(
+		SELECT A.COMMUNITY_SEQ, A.CNT
+		FROM
+		(
+		SELECT COMMUNITY_SEQ,COUNT(*) AS CNT
+		FROM BOOKGOOD
+		  where bookgood_gubun = 'G'
+		GROUP BY COMMUNITY_SEQ
+		ORDER BY CNT DESC
+		) A
+		) B
+		INNER JOIN
+		COMMUNITY C ON
+		(B.COMMUNITY_SEQ = C.COMMUNITY_SEQ and c.common_seq = 6)
+		) D
+		LEFT JOIN
+		ATTACH_FILE E ON
+		(D.FILE_SEQ = E.FILE_SEQ)
+		ORDER BY CNT DESC
+        )
+        )
+        where rn <= 5
+		]]>
+	</select>
+
+<!-- 자유게시판 목록 검색 -->
+	<select id="recipeListKeyword" parameterType="hashMap" resultType="egovMap">	<!-- egovMap : key 에 대하여 Camel Case 변환하여 super.put -->
+		SELECT
+		    (SELECT
+		        COUNT(*)
+		    FROM
+		        REPLY B
+		    WHERE
+		        A.COMMUNITY_SEQ = B.COMMUNITY_SEQ
+		        ) CNT,
+            (select count(*) from bookgood bk where bookgood_gubun = 'G' and bk.community_seq = a.community_seq) as board_good,
+		            (select count(*) from bookgood bk where bookgood_gubun = 'B' and bk.community_seq = a.community_seq) as board_book,
+		            (select count(*) from bookgood bk where member_id=#{memberId} and bookgood_gubun = 'G' and bk.community_seq = a.community_seq) as good_flag,
+		            (select count(*) from bookgood bk where member_id=#{memberId} and bookgood_gubun = 'B' and bk.community_seq = a.community_seq) as book_flag,
+		    A.COMMUNITY_SEQ,
+		    A.COMMON_SEQ,
+		    A.COMMUNITY_CATEGORY_SEQ,
+		    C.FILE_PATH,
+		     CASE
+		    WHEN LENGTH(A.COMMON_TITLE) > 15 THEN SUBSTR(A.COMMON_TITLE, 0, 15) ||'...'
+		    ELSE A.COMMON_TITLE
+		    END AS COMMON_TITLE,
+		    TO_CHAR(A.COMMON_CONTENT) COMMON_CONTENT,
+		    A.COMMON_HIT,
+		    A.COMMON_DEL_FLAG,
+		    A.IN_USER_ID,
+		    TO_CHAR(A.IN_DATE, 'YYYY-MM-DD') IN_DATE,
+		    A.UP_USER_ID,
+		    TO_CHAR(A.UP_DATE, 'YYYY-MM-DD') IN_DATE
+		FROM
+		    COMMUNITY A
+		    LEFT JOIN ATTACH_FILE C ON (A.FILE_SEQ = C.FILE_SEQ)
+		WHERE
+			A.COMMON_SEQ = '6' AND A.COMMON_DEL_FLAG = 'N'
+		AND 1=1
+		<if test="keyword != null and keyword != '' ">
+			AND A.COMMON_TITLE LIKE '%' || #{keyword} || '%'
+			OR A.IN_USER_ID LIKE '%' || #{keyword} || '%'
+		</if>
+
+ 			<!-- order by절-->
+			<trim prefix="ORDER BY" prefixOverrides="," >
+		    <choose>
+			    <when test="selLev == null or selLev == ''">
+					TO_NUMBER(A.COMMUNITY_SEQ) DESC
+				</when>
+			    <otherwise>
+			        <choose>
+			            <when test="selLev == '조회순'">
+			             , TO_NUMBER(A.COMMON_HIT) DESC, TO_NUMBER(A.COMMUNITY_SEQ)
+				        </when>
+				        <when test="selLev == '좋아요순'">
+						 , TO_NUMBER(BOARD_GOOD) DESC, TO_NUMBER(A.COMMUNITY_SEQ)
+				        </when>
+				         <when test="selLev == '댓글순'">
+						 , TO_NUMBER(CNT) DESC, TO_NUMBER(A.COMMUNITY_SEQ)
+				        </when>
+			        </choose>
+			      </otherwise>
+		    </choose>
+			</trim>
+	</select>
+</mapper>

@@ -1,0 +1,642 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+
+<mapper namespace="kr.or.profit.mapper.CommunityMapper">
+
+    <!-- 좋아요/북마크 삭제 -->
+	<delete id="deleteBookgood" parameterType="BookgoodVO">
+	    delete bookgood
+		where member_id = #{memberId} and community_seq = #{communitySeq} 
+		and bookgood_gubun = #{bookgoodGubun}
+	</delete>    
+	
+	<!-- 좋아요/북마크 추가 -->
+	<insert id="insertBookgood" parameterType="BookgoodVo">
+	    <selectKey order="BEFORE" keyProperty="bookgoodSeq"
+			resultType="String">
+			SELECT NVL(MAX(TO_NUMBER(bookgood_seq)),0)+1 FROM
+			bookgood
+		</selectKey>
+		insert into bookgood
+		(bookgood_seq, member_id, community_seq, bookgood_gubun, bookgood_flag, in_user_id, in_date, up_user_id, up_date)
+		values
+		(#{bookgoodSeq}, #{memberId}, #{communitySeq}, #{bookgoodGubun}, 'Y', #{memberId}, sysdate, #{memberId}, sysdate)
+	</insert>
+	
+	<!-- 좋아요/북마크 개수 count -->
+    <select id="selectBookgoodCnt" parameterType="BookgoodVO" resultType="int">
+        select count(*)
+		from bookgood
+		where community_seq = #{communitySeq} and bookgood_gubun = #{bookgoodGubun}
+    </select>
+    
+	<!-- 자유게시판 글 추가 -->
+	<insert id="insertBoard">
+		<selectKey order="BEFORE" keyProperty="communitySeq"
+			resultType="String">
+			SELECT NVL(MAX(TO_NUMBER(COMMUNITY_SEQ)),0)+1 FROM
+			COMMUNITY
+		</selectKey>
+		<![CDATA[
+			INSERT INTO COMMUNITY
+			(	COMMUNITY_SEQ,
+				COMMON_SEQ,
+				COMMUNITY_CATEGORY_SEQ,
+				FILE_SEQ,
+				COMMON_TITLE,
+				COMMON_CONTENT,
+				COMMON_HIT,
+				COMMON_DEL_FLAG,
+				IN_USER_ID,
+				IN_DATE,
+				UP_USER_ID,
+				UP_DATE
+			)
+			VALUES (
+				#{communitySeq},
+				'5',
+				#{communityCategorySeq, jdbcType=VARCHAR},
+				#{fileSeq, jdbcType=VARCHAR},
+				#{commonTitle, jdbcType=VARCHAR},
+				#{commonContent, jdbcType=VARCHAR},
+				'0',
+				'N',
+				#{inUserId, jdbcType=VARCHAR},
+				sysdate,
+				#{upUserId, jdbcType=VARCHAR},
+				sysdate
+			)
+		]]>
+	</insert>
+
+
+	<!-- 자유게시판 글 추가 시 썸네일 사진 추가 -->
+	<insert id="insertBoardFile">
+		<selectKey order="BEFORE" keyProperty="fileSeq"
+			resultType="String">
+			SELECT NVL(MAX(TO_NUMBER(FILE_SEQ)),0)+1 FROM ATTACH_FILE
+		</selectKey>
+		<![CDATA[
+			INSERT INTO ATTACH_FILE
+			(	FILE_SEQ,
+				FILE_DETAIL_SEQ,
+				FILE_REAL_NAME,
+				FILE_SAVE_NAME,
+				FILE_PATH,
+				IN_USER_ID,
+				IN_DATE,
+				UP_USER_ID,
+				UP_DATE
+			)
+			VALUES 
+			(
+				#{fileSeq, jdbcType=VARCHAR},
+				'1',
+				#{fileRealName, jdbcType=VARCHAR},
+				#{fileSaveName, jdbcType=VARCHAR},
+				#{filePath, jdbcType=VARCHAR},
+				#{inUserId, jdbcType=VARCHAR},
+				sysdate,
+				#{upUserId, jdbcType=VARCHAR},
+				sysdate
+			)
+		]]>
+	</insert>
+	
+	
+	<!-- 자유게시판 페이징 처리 -->
+	<select id="selectBoardCnt" parameterType="Criteria" resultType="int">
+	    select count(*) 
+	    from community a
+	    inner join community_category b
+	    using (COMMUNITY_CATEGORY_SEQ)
+		where a.common_del_flag = 'N' and a.common_seq = '5'
+		and 1=1
+		<if test="selCate != null and selCate != '' ">
+			AND b.community_category_name = #{selCate}
+		</if>
+		<if test="keyword != null and keyword != '' ">
+		    AND a.common_title LIKE '%' || #{keyword} || '%'
+		    OR a.IN_USER_ID LIKE '%' || #{keyword} || '%'
+		</if>
+	</select>	
+	
+	<!-- 자유게시판 목록 조회 -->
+	<select id="selectBoardList" parameterType="Criteria" resultType="egovMap">	<!-- egovMap : key 에 대하여 Camel Case 변환하여 super.put -->
+	    
+    select
+			tt.rm, tt.community_seq, tt.common_hit, tt.community_category_seq, tt.file_seq, tt.board_good,
+            tt.board_book, tt.good_flag,
+            tt.book_flag, tt.common_title,
+            tt.common_content, tt.in_user_id, tt.in_date, tt.file_path,
+            tt.board_reply, tt.community_category_name
+    from
+    	(
+    	select rownum as rm, tbl.community_seq , tbl.common_hit, tbl.community_category_seq , 
+				tbl.file_seq, tbl.board_good, tbl.board_book, tbl.good_flag, 
+				tbl.book_flag, tbl.common_title, 
+				tbl.common_content, tbl.in_user_id, tbl.in_date, tbl.file_path, 
+				tbl.board_reply, tbl.community_category_name
+		from ( 
+		    SELECT A.COMMUNITY_SEQ,A.COMMUNITY_CATEGORY_SEQ,A.FILE_SEQ,
+		            (select count(*) from bookgood bk where bookgood_gubun = 'G' and bk.community_seq = a.community_seq) as board_good,
+		            (select count(*) from bookgood bk where bookgood_gubun = 'B' and bk.community_seq = a.community_seq) as board_book,
+		            (select count(*) from bookgood bk where member_id=#{memberId} and bookgood_gubun = 'G' and bk.community_seq = a.community_seq) as good_flag,
+		            (select count(*) from bookgood bk where member_id=#{memberId} and bookgood_gubun = 'B' and bk.community_seq = a.community_seq) as book_flag,
+		          CASE WHEN LENGTH(A.COMMON_TITLE) > 15 THEN SUBSTR(A.COMMON_TITLE, 0, 15) || '...' ELSE A.COMMON_TITLE END AS COMMON_TITLE,
+		          A.COMMON_CONTENT,
+		          A.COMMON_HIT,
+		          A.IN_USER_ID,
+		          A.IN_DATE,
+		          B.FILE_PATH,
+		          NVL(D.BOARD_REPLY,0) AS BOARD_REPLY,
+		          E.COMMUNITY_CATEGORY_NAME
+		    FROM
+		          COMMUNITY A
+		          LEFT JOIN
+		          ATTACH_FILE B ON
+		          (A.FILE_SEQ = B.FILE_SEQ)
+		          LEFT JOIN
+		          (
+		          SELECT COMMUNITY_SEQ,
+		          COUNT(*) AS BOARD_REPLY
+		          FROM REPLY
+		          WHERE REPLY_DEL_FLAG='N'
+		          GROUP BY
+		          COMMUNITY_SEQ
+		          ) D ON
+		          (A.COMMUNITY_SEQ = D.COMMUNITY_SEQ)
+		          LEFT JOIN
+		          COMMUNITY_CATEGORY E ON
+		          (A.COMMUNITY_CATEGORY_SEQ =
+		          E.COMMUNITY_CATEGORY_SEQ)
+		    WHERE
+		          A.COMMON_SEQ = 5 AND A.COMMON_DEL_FLAG = 'N'
+		          and 1=1
+				<if test="selCate != null and selCate != '' ">
+					AND E.community_category_name = #{selCate}
+				</if>
+				<if test="keyword != null and keyword != '' ">
+				    AND A.common_title LIKE '%' || #{keyword} || '%'
+				    OR A.IN_USER_ID LIKE '%' || #{keyword} || '%'
+				</if>
+				
+ 			<!-- order by절-->
+				<trim prefix="ORDER BY" prefixOverrides="," >
+			    <choose>
+				    <when test="selLev == null or selLev == ''">
+						TO_NUMBER(A.community_seq) DESC
+					</when>
+				    <otherwise>
+				        <choose>
+				            <when test="selLev == '조회순'">
+				             , TO_NUMBER(A.common_hit) DESC, TO_NUMBER(A.community_seq)
+					        </when>
+					        <when test="selLev == '좋아요순'">
+							 , TO_NUMBER(board_good) DESC, TO_NUMBER(A.community_seq)
+					        </when>
+					         <when test="selLev == '댓글순'">
+							 , TO_NUMBER(board_reply) DESC, TO_NUMBER(A.community_seq)
+					        </when>
+				        </choose>
+				      </otherwise>
+			    </choose>
+				</trim>
+			) tbl
+		) tt
+		where tt.rm between #{rowStart} and #{rowEnd}
+		
+	</select>
+
+	
+	<!-- 자유게시판 인기글 목록 조회 -->
+	<select id="selectBoardTopList" parameterType="String" resultType="egovMap">
+		<![CDATA[
+		SELECT 
+		COMMUNITY_SEQ, 
+		good_flag,
+		book_flag,
+	    COMMUNITY_CATEGORY_SEQ, 
+	    FILE_SEQ, 
+	    COMMON_TITLE,
+	    COMMON_CONTENT,
+	    COMMON_HIT,
+	    IN_USER_ID, 
+	    TO_CHAR(IN_DATE,'YYYY-MM-DD') AS IN_DATE,
+	    FILE_PATH,
+	    BOARD_GOOD,
+	    BOARD_BOOK,
+	    BOARD_REPLY,
+	    COMMUNITY_CATEGORY_NAME
+		
+		FROM
+			(
+			SELECT A.COMMUNITY_SEQ,A.COMMUNITY_CATEGORY_SEQ,A.FILE_SEQ,
+		
+			(select count(*) from bookgood bk where bookgood_gubun = 'G' and bk.community_seq = a.community_seq) as board_good,
+			(select count(*) from bookgood bk where bookgood_gubun = 'B' and bk.community_seq = a.community_seq) as board_book,
+			(select count(*) from bookgood bk where member_id=#{memberId} and bookgood_gubun = 'G' and bk.community_seq = a.community_seq) as good_flag,
+			(select count(*) from bookgood bk where member_id=#{memberId} and bookgood_gubun = 'B' and bk.community_seq = a.community_seq) as book_flag,
+		
+			CASE
+			WHEN
+			LENGTH(A.COMMON_TITLE) > 15 THEN SUBSTR(A.COMMON_TITLE, 0, 15) ||
+			'...'
+			ELSE A.COMMON_TITLE
+			END AS COMMON_TITLE,
+			A.COMMON_CONTENT,
+			A.COMMON_HIT,
+			A.IN_USER_ID,
+			A.IN_DATE,
+			B.FILE_PATH,
+			NVL(D.BOARD_REPLY,0) AS
+			BOARD_REPLY,
+			E.COMMUNITY_CATEGORY_NAME
+			FROM
+			COMMUNITY A
+			LEFT JOIN
+			ATTACH_FILE B ON
+			(A.FILE_SEQ = B.FILE_SEQ)
+			LEFT JOIN
+			(
+			SELECT COMMUNITY_SEQ,
+			COUNT(*) AS BOARD_REPLY
+			FROM REPLY
+			WHERE REPLY_DEL_FLAG='N'
+			GROUP BY
+			COMMUNITY_SEQ
+			) D ON
+			(A.COMMUNITY_SEQ = D.COMMUNITY_SEQ)
+			LEFT JOIN
+			COMMUNITY_CATEGORY E ON
+			(A.COMMUNITY_CATEGORY_SEQ =
+			E.COMMUNITY_CATEGORY_SEQ)
+			WHERE
+			A.COMMON_SEQ = 5 AND A.COMMON_DEL_FLAG = 'N'
+			ORDER BY to_number(A.common_hit) desc
+			)
+			
+		WHERE ROWNUM<=5
+		]]>
+	</select>
+
+	
+	<resultMap id="test" type="HashMap" >
+		<result property="commonContent" column="COMMON_CONTENT" jdbcType="CLOB" javaType="java.lang.String" />
+		<result property="communityCategoryName" column="COMMUNITY_CATEGORY_NAME" />
+		<result property="commonTitle" column="COMMON_TITLE" />
+		<result property="commonHit" column="COMMON_HIT" />
+		<result property="boardReply" column="BOARD_REPLY" />
+		<result property="boardGood" column="BOARD_GOOD" />
+		<result property="boardBook" column="BOARD_BOOK" />
+		
+		<result property="goodFlag" column="GOOD_FLAG" />
+		<result property="bookFlag" column="BOOK_FLAG" />
+		
+		<result property="inUserId" column="IN_USER_ID" />
+		<result property="inDate" column="IN_DATE" />
+		<result property="communitySeq" column="COMMUNITY_SEQ" />
+		<result property="communityCategorySeq" column="COMMUNITY_CATEGORY_SEQ" />
+	</resultMap>
+	
+	<!-- 자유게시판 상세글 조회 -->
+	<select id="selectBoardDetail" parameterType="CommunityVO" resultMap="test">
+		<![CDATA[
+		SELECT A.COMMUNITY_SEQ, 
+		
+		(select count(*) from bookgood bk where member_id=#{memberId} and bookgood_gubun = 'G' and bk.community_seq = a.community_seq) as good_flag,
+        (select count(*) from bookgood bk where member_id=#{memberId} and bookgood_gubun = 'B' and bk.community_seq = a.community_seq) as book_flag,
+        
+		
+		B.COMMUNITY_CATEGORY_NAME, A.COMMON_SEQ, NVL(C.BOARD_REPLY,0) AS BOARD_REPLY , NVL(D.BOARD_BOOK,0) AS BOARD_BOOK,NVL(E.BOARD_GOOD,0) AS BOARD_GOOD, 
+        A.COMMUNITY_CATEGORY_SEQ, A.FILE_SEQ, A.COMMON_TITLE, A.COMMON_CONTENT, A.COMMON_HIT, A.COMMON_DEL_FLAG, 
+        A.IN_USER_ID, to_char(A.IN_DATE,'yyyy-mm-dd') as in_date, A.UP_USER_ID, A.UP_DATE
+		FROM COMMUNITY A
+		LEFT JOIN
+		COMMUNITY_CATEGORY B ON
+		(A.COMMUNITY_CATEGORY_SEQ=B.COMMUNITY_CATEGORY_SEQ)
+		LEFT JOIN
+		(
+		SELECT COMMUNITY_SEQ, COUNT(*) AS BOARD_REPLY
+		FROM REPLY
+		WHERE REPLY_DEL_FLAG='N'
+		GROUP BY COMMUNITY_SEQ
+		) C ON
+		(A.COMMUNITY_SEQ = C.COMMUNITY_SEQ)
+		LEFT JOIN
+		(
+		SELECT COMMUNITY_SEQ, COUNT(*) AS BOARD_BOOK
+				FROM BOOKGOOD
+				WHERE BOOKGOOD_FLAG='Y' AND BOOKGOOD_GUBUN='B'
+		        GROUP BY COMMUNITY_SEQ
+		) D ON
+		(A.COMMUNITY_SEQ = D.COMMUNITY_SEQ)
+		LEFT JOIN
+		(
+		SELECT COMMUNITY_SEQ, COUNT(*) AS BOARD_GOOD
+				FROM BOOKGOOD
+				WHERE BOOKGOOD_FLAG='Y' AND BOOKGOOD_GUBUN='G'
+		        GROUP BY COMMUNITY_SEQ
+		) E ON
+		(A.COMMUNITY_SEQ = E.COMMUNITY_SEQ)
+		WHERE A.COMMUNITY_SEQ = #{communitySeq}
+		]]>
+	</select>
+
+	<!-- 자유게시판 상세 댓글 나의 프로필 사진 조회 -->
+	<select id="selectMyProfile" resultType="String">
+		SELECT B.FILE_PATH as
+		file_path
+		FROM MEMBER A
+		LEFT JOIN
+		ATTACH_FILE B ON
+		(A.FILE_SEQ=B.FILE_SEQ)
+		WHERE MEMBER_ID=#{memberId}
+	</select>
+
+
+	<!-- 자유게시판 상세 댓글 추가 -->
+	<insert id="insertBoardReply">
+		<selectKey order="BEFORE" keyProperty="replySeq"
+			resultType="String">
+			SELECT NVL(MAX(TO_NUMBER(REPLY_SEQ)),0)+1 FROM REPLY
+		</selectKey>
+		<![CDATA[
+		INSERT 
+			INTO 
+		reply
+		(
+		reply_seq, 
+		community_seq, 
+		reply_content, 
+		reply_del_flag, 
+		reply_depth, 
+		in_user_id,
+		in_date, 
+		up_user_id, 
+		up_date
+		)
+		VALUES 
+		(
+		#{replySeq},
+		#{communitySeq},
+		#{replyContent},
+		'N',
+		'1',
+		#{inUserId},
+		sysdate, 
+		#{upUserId}, 
+		sysdate
+		)
+		]]>
+	</insert>
+	
+	<!-- 자유게시판 댓글 목록 조회-->
+	<select id="selectReplyList" resultType="egovMap">
+		SELECT 
+		RN,
+		C.REPLY_SEQ, 
+		C.REPLY_CONTENT, 
+		C.COMMUNITY_SEQ, 
+		C.REPLY_DEL_FLAG, 
+		C.REPLY_PARENT_SEQ, 
+		C.REPLY_DEPTH, 
+		C.REPLY_NEXT_DEPTH ,
+		C.IN_USER_ID, 
+		C.IN_DATE, 
+		C.MEMBER_NICKNAME, 
+		C.MEMBER_GUBUN,
+		C.FILE_SEQ, 
+		D.FILE_PATH
+        FROM
+        (
+        SELECT 
+        RN,
+        REPLY_SEQ, 
+        REPLY_CONTENT, 
+        COMMUNITY_SEQ, 
+        REPLY_DEL_FLAG, 
+        REPLY_PARENT_SEQ, 
+        REPLY_DEPTH, 
+        LEAD(REPLY_DEPTH) OVER(ORDER BY RN) AS REPLY_NEXT_DEPTH ,
+        IN_USER_ID, 
+        IN_DATE, 
+        MEMBER_NICKNAME, 
+        MEMBER_GUBUN,
+        FILE_SEQ
+		FROM
+		(
+		SELECT 
+		ROWNUM AS RN, 
+		A.COMMUNITY_SEQ, 
+		A.REPLY_SEQ, 
+		A.REPLY_CONTENT, 
+		A.REPLY_DEL_FLAG, 
+		A.REPLY_PARENT_SEQ, 
+		A.REPLY_DEPTH,
+		A.IN_USER_ID, 
+		A.IN_DATE, 
+		B.MEMBER_NICKNAME, 
+        B.MEMBER_GUBUN,
+		B.FILE_SEQ
+		FROM
+		(
+		SELECT *
+		FROM REPLY
+		WHERE REPLY_DEL_FLAG='N'
+		START WITH REPLY_PARENT_SEQ IS NULL
+		CONNECT BY PRIOR REPLY_SEQ = REPLY_PARENT_SEQ
+		ORDER SIBLINGS BY IN_DATE DESC, REPLY_SEQ
+		) A
+		LEFT JOIN 
+		MEMBER B ON
+		(A.IN_USER_ID=B.MEMBER_ID)
+		)
+		WHERE COMMUNITY_SEQ = #{communitySeq}
+        )
+        C
+        LEFT JOIN 
+        ATTACH_FILE D ON
+        (C.FILE_SEQ = D.FILE_SEQ)
+        ORDER BY RN ASC
+	</select>
+	
+	<!-- 자유게시판 답글 추가 -->
+	<insert id="insertBoardRereply">
+		<selectKey order="BEFORE" keyProperty="replySeq"
+			resultType="String">
+			SELECT NVL(MAX(TO_NUMBER(REPLY_SEQ)),0)+1 FROM REPLY
+		</selectKey>
+		<![CDATA[
+		INSERT 
+			INTO 
+		reply
+		(
+		reply_seq, 
+		community_seq, 
+		reply_content, 
+		reply_del_flag, 
+		reply_parent_seq,
+		reply_depth, 
+		in_user_id,
+		in_date, 
+		up_user_id, 
+		up_date
+		)
+		VALUES 
+		(
+		#{replySeq},
+		#{communitySeq},
+		#{replyContent},
+		'N',
+		#{replyParentSeq},
+		'2',
+		#{inUserId},
+		sysdate, 
+		#{upUserId}, 
+		sysdate
+		)
+		
+		]]>
+	</insert>
+	
+	<!-- 자유게시판 댓글 삭제 -->
+	<update id="deleteBoardReply" parameterType="String">
+        UPDATE REPLY B
+		SET    B.REPLY_DEL_FLAG = 'Y'
+		WHERE  B.REPLY_SEQ IN(
+		    SELECT A.REPLY_SEQ
+		    FROM
+		    (
+		        SELECT *
+		        FROM REPLY
+		        START WITH REPLY_PARENT_SEQ IS NULL
+		        CONNECT BY PRIOR REPLY_SEQ = REPLY_PARENT_SEQ
+		        ORDER SIBLINGS BY REPLY_SEQ
+		    ) A
+		    WHERE (A.REPLY_SEQ = #{replySeq} OR REPLY_PARENT_SEQ = #{replySeq})
+		)
+
+	</update>
+	
+	<!-- 자유게시판 조회수 증가 -->
+	
+	<update id="increaseHit" parameterType="String">
+        UPDATE COMMUNITY 
+		SET 
+		COMMON_HIT = COMMON_HIT+ 1
+		WHERE COMMUNITY_SEQ = #{communitySeq}
+
+	</update>
+	
+	<!-- 자유게시판 글 수정 -->
+	<update id="updateBoard">
+	    UPDATE COMMUNITY 
+	    SET 
+	    COMMON_TITLE = #{commonTitle}, 
+		COMMON_CONTENT = #{commonContent},
+		COMMUNITY_CATEGORY_SEQ = #{communityCategorySeq},
+		FILE_SEQ =#{fileSeq},
+		UP_USER_ID=#{upUserId},
+		UP_DATE = SYSDATE
+		WHERE COMMUNITY_SEQ=#{communitySeq}
+	    
+	</update>
+	
+	<!-- 자유게시판 글 삭제 -->
+	<update id="deleteBoard">
+	    UPDATE COMMUNITY 
+	    SET COMMON_DEL_FLAG='Y'
+		WHERE COMMUNITY_SEQ = #{communitySeq}
+	    
+	</update>
+	
+	<!-- 자유게시판 최신글 TOP5 조회 -->
+	<select id="recentBoardList" resultType="egovMap">
+	    <![CDATA[
+	    SELECT A.RN, A.COMMUNITY_SEQ, A.FILE_SEQ,
+	    CASE 
+	    WHEN LENGTH(A.COMMON_TITLE) > 20 THEN SUBSTR(A.COMMON_TITLE, 0, 20) ||'...' 
+		ELSE A.COMMON_TITLE
+		END AS COMMON_TITLE, 
+	    B.FILE_PATH, A.IN_DATE
+		FROM
+		(
+		SELECT ROWNUM AS RN, COMMUNITY_SEQ, FILE_SEQ, COMMON_TITLE, IN_DATE
+		FROM
+		(
+		SELECT COMMUNITY_SEQ, FILE_SEQ, COMMON_TITLE, IN_DATE
+		FROM COMMUNITY
+		WHERE COMMON_SEQ = 5 AND COMMON_DEL_FLAG = 'N'
+		ORDER BY IN_DATE DESC
+		)
+		WHERE ROWNUM <= 5
+		) A
+		LEFT JOIN 
+		ATTACH_FILE B ON
+		(A.FILE_SEQ = B.FILE_SEQ)
+		ORDER BY RN ASC
+	    ]]>
+	</select>
+	
+	<!-- 자유게시판 인기글 TOP5 조회 -->
+	<select id="bestBoardList" resultType="egovMap">
+	    <![CDATA[
+	    select *
+        from(
+        select rownum as rn, community_seq, cnt, common_title, in_date, file_seq, file_path
+        from
+        (SELECT D.COMMUNITY_SEQ, D.CNT, 
+	    CASE 
+	    WHEN LENGTH(D.COMMON_TITLE) > 20 THEN SUBSTR(D.COMMON_TITLE, 0, 20) ||'...' 
+		ELSE D.COMMON_TITLE
+		END AS COMMON_TITLE,
+		D.IN_DATE, E.FILE_SEQ, E.FILE_PATH
+		FROM
+		(
+		SELECT B.COMMUNITY_SEQ, B.CNT, C.COMMON_TITLE,  C.FILE_SEQ, C.IN_DATE
+		FROM
+		(
+		SELECT A.COMMUNITY_SEQ, A.CNT
+		FROM
+		(
+		SELECT COMMUNITY_SEQ,COUNT(*) AS CNT
+		FROM BOOKGOOD
+        where bookgood_gubun = 'G'
+		GROUP BY COMMUNITY_SEQ
+		ORDER BY CNT DESC
+		) A
+		) B
+		INNER JOIN 
+		COMMUNITY C ON
+		(B.COMMUNITY_SEQ = C.COMMUNITY_SEQ and c.common_seq = 5)
+		) D
+		LEFT JOIN 
+		ATTACH_FILE E ON
+		(D.FILE_SEQ = E.FILE_SEQ)
+		ORDER BY CNT DESC
+        )
+        )
+        where rn <= 5
+	    ]]>
+	</select>
+	
+	<select id="selectReplyCnt" resultType="egovMap">
+	    SELECT 
+		count(*) as cnt
+		FROM
+		(
+		SELECT *
+		FROM REPLY
+		WHERE REPLY_DEL_FLAG='N'
+		START WITH REPLY_PARENT_SEQ IS NULL
+		CONNECT BY PRIOR REPLY_SEQ = REPLY_PARENT_SEQ
+		ORDER SIBLINGS BY IN_DATE DESC, REPLY_SEQ
+		) A
+		LEFT JOIN 
+		MEMBER B ON
+		(A.IN_USER_ID=B.MEMBER_ID)
+		WHERE COMMUNITY_SEQ = #{communitySeq}
+	</select>
+	
+</mapper>

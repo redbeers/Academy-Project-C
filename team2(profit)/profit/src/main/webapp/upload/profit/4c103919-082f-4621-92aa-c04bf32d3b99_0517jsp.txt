@@ -1,0 +1,64 @@
+1. submit 버튼 누르면
+
+2. join.do 로 가라고 하면 xml 에서 매핑된 ControllerUsingURI 이동
+
+3. ControllerUsingURI 이게 뭔가 보니까 위에서 mvc.controller.ControllerUsingURI 경로를 알려줌
+
+4. <내 위치 : ControllerUsingURI.java>
+
+1) init() => configFile 이 뭔지 봤더니 /WEB-INF/commandHandlerURI.properties 이거래 (xml에서)
+
+2) 이 파일 읽어와야 하니까 configFilePath 구했더니 찐 경로임
+
+3) configFilePath 를 읽어와!
+
+4) 얘의 key는 /join.do 야!! value는 member.command.JoinHandler 야!!
+
+5) commandHandlerMap 그대로 저장되는데 그대신 value 뒤에 주소같은게 붙어져서 들어감
+
+***********doPost() 였으니까 이게 실행이 되고
+
+1) process 메서드가 실행이 되는데 바로 밑에 있음
+
+2) command = /board/join.do
+
+3) getContextPath() = board
+
+4) board 뒤에 주소를 가져오기 위해서 indexOf랑 substring 이용해서 가져옴 
+
+5) handler = 길다란 주소값이 있는거 다시 가져옴 *** 정확한 핸들러 위치를 가지고 있음
+
+6) handler.process 인데 들어가봤더니 인터페이스고 이걸 구현한 곳이 value값인 member.command.JoinHandler
+여기에 가서 여기의 process() 메서드를 실행함
+
+*******************JoinHandler.java
+
+1) 요청방식이 post 였으니까 processSubmit 으로 간다
+
+2) vo 생성해서 전부 셋팅!
+
+3) 오류 정보를 담을 Map 객체를 생성
+
+4) validate
+
+
+********************JoinRequest
+
+1)  각 필드의 데이터가 유효한지 검사
+
+2) 비밀번호와 확인값이 일치하지 않으면 notMatch라는 에러키를 추가함
+
+3) errors 객체에다가 notMatch key 저장!
+
+4) errors.isEmpty() 봐서 errors가 비어있지 않으면 return FORM_VIEW;
+
+-비어있으면 에러 없는 정상이니까 return "/WEB-INF/view/joinSuccess.jsp";
+
+
+
+*************다시 ControllerUsingURI.java 로 와서 
+
+1) viewPage == "/WEB-INF/view/joinForm.jsp" 이게 됨
+
+2) 그리고 마지막 dispatcher.forward 이거 해서 최종 응답!!!
+

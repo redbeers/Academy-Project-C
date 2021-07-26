@@ -1,0 +1,490 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="kr.or.profit.mapper.MypageMapper">
+	
+    <!-- myinfo 북마크 리스트 -->
+    <select id="selectBookmarkList" parameterType="Criteria" resultType="egovMap" >
+        
+        select	tt.rm, tt.bookgood_seq, tt.in_date,
+        		tt.common_title, 
+        		tt.community_seq, tt.c_date, tt.common_seq,
+        		tt.c_filpath,
+        		tt.lesson_title, 
+        		tt.l_filpath,
+        		tt.lesson_seq, tt.l_date
+        from
+        (
+        select  rownum as rm, tbl.bookgood_seq, tbl.in_date,
+        		tbl.common_title, 
+        		tbl.community_seq, tbl.c_date, tbl.common_seq,
+        		tbl.c_filpath,
+        		tbl.lesson_title, 
+        		tbl.l_filpath,
+        		tbl.lesson_seq, tbl.l_date
+        		
+        from(
+        select  b.bookgood_seq, b.in_date,
+		        case when length(c.common_title) > 19 then substr(c.common_title, 0, 19) || '...' else c.common_title end as common_title,
+		        c.community_seq, c.in_date as c_date, c.common_seq,
+		        (select a.file_path from attach_file a where a.file_seq = c.file_seq) as c_filpath,
+		        case when length(l.lesson_title) > 19 then substr(l.lesson_title, 0, 19) || '...' else l.lesson_title end as lesson_title,
+		        (select a.file_path from attach_file a where a.file_seq = l.file_seq) as l_filpath,
+		        l.lesson_seq,l.in_date as l_date 
+		from    bookgood b 
+		        left join community c
+		        on (b.community_seq = c.community_seq and c.common_del_flag = 'N')
+		        left join lesson l
+		        on (b.lesson_seq = l.lesson_seq and l.lesson_private_flag = 'N')
+		where   b.member_id = #{memberId} and b.bookgood_gubun = 'B' 
+		        and (c.community_seq is not null or l.lesson_seq is not null)
+	            <if test="commonSeq != null and commonSeq != '' ">
+		            <choose>
+			            <when test='commonSeq.equals("4")'>
+			                and l.common_seq = '4'
+			            </when>
+			            <when test='commonSeq.equals("5")'>
+			                and c.common_seq = '5'
+			            </when>
+			            <when test='commonSeq.equals("6")'>
+			                and c.common_seq = '6'
+			            </when>
+		            </choose>
+	            </if>
+		order by b.in_date desc
+		) tbl
+		) tt
+		where tt.rm between #{rowStart} and #{rowEnd}
+		
+    </select>
+    
+    <!-- 페이징용 북마크 전체 개수 cnt -->
+    <select id="selectBookmarkCnt" parameterType="Criteria" resultType="int">
+        select 	count(*)
+        from    bookgood b 
+		        left join community c
+		        on (b.community_seq = c.community_seq and c.common_del_flag = 'N')
+		        left join lesson l
+		        on (b.lesson_seq = l.lesson_seq and l.lesson_private_flag = 'N')
+		where   b.member_id = #{memberId} and b.bookgood_gubun = 'B' 
+		        and (c.community_seq is not null or l.lesson_seq is not null)
+	            <if test="commonSeq != null and commonSeq != '' ">
+		            <choose>
+			            <when test='commonSeq.equals("4")'>
+			                and l.common_seq = '4'
+			            </when>
+			            <when test='commonSeq.equals("5")'>
+			                and c.common_seq = '5'
+			            </when>
+			            <when test='commonSeq.equals("6")'>
+			                and c.common_seq = '6'
+			            </when>
+		            </choose>
+	            </if>
+        
+    </select>
+    
+    
+    
+    <!-- 프로세스 정보 가져오기 -->
+    <select id="selectProcessInfo" parameterType="String" resultType="ProcessVO">
+        select a.member_name, a.member_gender, a.member_mobile,b.file_seq,b.process_status,
+		        b.trainer_gym, b.trainer_award, b.trainer_career, b.in_date, b.result_reason, b.process_finish_date
+		from member a
+		inner join process b
+		on a.member_id = b.member_id
+		where a.member_id = #{memberId}
+    </select>
+    
+    
+    <!-- 첨부파일 가져오기-->
+    <select id="selectFileInfo" parameterType="String" resultType="egovMap">
+    select file_real_name, file_path 
+	from attach_file
+	where file_seq = #{fileSeq}
+	</select>
+    
+    
+    <!-- 페이지 못들어가게 검사 -->
+    <select id="checkApplyPage" parameterType="String" resultType="int">
+        select count(*)
+		from process
+		where process_status in ('A', 'B', 'C', 'E')
+		and member_id = #{memberId}
+        
+    </select>
+    
+    
+
+	<!-- 회원 기본정보 가져오기 -->
+	<select id="selectMemberInfo" parameterType="String"
+		resultType="egovMap">
+		select
+		member_name,
+		member_gender,
+		member_mobile
+		from
+		member
+		where
+		member_id=#{memberId}
+	</select>
+
+
+	<!-- 프로세스테이블에 정보 추가 -->
+	<insert id="insertProcess" parameterType="ProcessVO">
+
+		<selectKey resultType="string" keyProperty="fileSeq"
+			order="BEFORE">
+			select
+			NVL(max(to_number(file_seq)),0)
+			from attach_file
+		</selectKey>
+              
+        <![CDATA[
+        insert 
+           into 
+        process
+           (
+              	process_seq,
+	            member_id,
+	            file_seq,
+	            trainer_award,
+	            trainer_career,
+	            trainer_gym,
+	            process_status,
+	            admin_memo,
+	            in_user_id,
+	            in_date,
+	            result_reason
+           )
+         values(
+            (
+            	select 
+                  NVL(max(to_number(process_seq)),0) + 1 
+               from process
+            ), 
+            #{memberId}, 
+            #{fileSeq},
+            #{trainerAward}, 
+            #{trainerCareer}, 
+            #{trainerGym},
+            'A',
+              null, 
+              #{inUserId}, 
+              sysdate
+              ),
+              null
+        ]]>
+
+	</insert>
+
+	<!-- 파일 테이블에 데이터 추가 -->
+
+
+	<insert id="insertProcessFile" parameterType="java.util.Map">
+		<foreach collection="list" item="item" index="index"
+			open="INSERT ALL" close="SELECT * FROM DUAL" separator=" ">
+
+			into
+			attach_file
+			(
+			file_seq,
+			file_detail_seq,
+			file_real_name,
+			file_save_name,
+			file_path,
+			in_user_id,
+			in_date,
+			up_user_id,
+			up_date
+			)
+			values
+
+			(
+			(
+			select
+			NVL(max(to_number(file_seq)),0) + 1
+			from
+			attach_file),
+			#{item.fileDetailSeq},
+			#{item.fileRealName},
+			#{item.fileSaveName},
+			#{item.filePath},
+			#{item.inUserId},
+			sysdate,
+			#{item.upUserId, jdbcType=VARCHAR},
+			sysdate
+			)
+
+
+		</foreach>
+	</insert>
+
+
+
+	<!-- 회원모든정보 select -->
+	<select id="selectAllMemberInfo" parameterType="String" resultType="MemberVO">
+		select 
+			m.member_id, 
+			a.file_path, 
+			m.MEMBER_PWD, 
+			m.MEMBER_NAME,
+			m.MEMBER_NICKNAME, 
+			nvl(m.MEMBER_MOBILE,0) as MEMBER_MOBILE,
+			nvl(m.MEMBER_GENDER,0) as MEMBER_GENDER,
+			nvl(m.MEMBER_HEIGHT,0) as MEMBER_HEIGHT, 
+			nvl(m.MEMBER_WEIGHT,0) as MEMBER_WEIGHT, 
+			m.MEMBER_EMAIL,
+			m.MEMBER_ROUTE
+		from
+			member m
+		inner join attach_file a
+		using (file_seq)
+		where member_id = #{memberId}
+	</select>
+
+	
+	
+	<!-- 민선 내정보수정 -->
+	<update id="updateMemberInfo" parameterType="MemberVO">
+        update member
+        set  
+        member_name = #{memberName},
+        member_nickname = #{memberNickname},
+        member_mobile = #{memberMobile},
+        member_gender = #{memberGender},
+        member_weight = #{memberWeight},
+        member_height = #{memberHeight},
+        file_seq = (select NVL(max(to_number(file_seq)),0) from attach_file)
+        where
+        member_id = #{memberId}
+
+	</update>
+	
+	
+	<update id="updateOnlyInfo" parameterType="MemberVO">
+		update member
+        set  
+        member_name = #{memberName},
+        member_nickname = #{memberNickname},
+        member_mobile = #{memberMobile},
+        member_gender = #{memberGender},
+        member_weight = #{memberWeight},
+        member_height = #{memberHeight}
+        where
+        member_id = #{memberId}
+	    
+	</update>
+	
+	
+	
+<!-- 민정 - 회원이 구매한 강의 list -->
+	<select id="myBuyLessonList" parameterType="Criteria" resultType="egovMap">
+	    <![CDATA[
+		    select rm,  BUY_LESSON_SEQ, LESSON_SEQ, LESSON_MONTH,
+				REMAINMONTH, lesson_TITLE, LESSON_CATEGORY_NAME, status, in_date,up_user_id,member_gubun
+				from
+				(
+				select rownum as rm, BUY_LESSON_SEQ, LESSON_SEQ, LESSON_MONTH,
+				REMAINMONTH, lesson_TITLE, LESSON_CATEGORY_NAME, status, in_date,up_user_id,member_gubun
+				from
+				(
+				select A.BUY_LESSON_SEQ,
+				       A.LESSON_SEQ,
+		               a.in_date,
+		               b.up_user_id,
+		               B.LESSON_MONTH,
+		               TRUNC(TO_DATE(A.LESSON_FINISH_DATE) - SYSDATE)  REMAINMONTH,
+				       CASE WHEN LENGTH(B.LESSON_TITLE) > 20 THEN SUBSTR(B.LESSON_TITLE, 0, 20) || '...' ELSE B.LESSON_TITLE END AS lesson_TITLE,
+				       C.LESSON_CATEGORY_NAME,
+				       (case
+				        when LESSON_REFUND_FLAG = 'Y' then '환불완료'
+				        when SYSDATE - TO_DATE(lesson_finish_date)  > 0 and lesson_refund_flag = 'N' then '기간만료'
+				        when lesson_click_FLAG = 'Y' and SYSDATE - TO_DATE(lesson_finish_date)  < 0 and lesson_refund_flag='N' then '수강진행'
+				        when lesson_click_flag = 'N' and lesson_refund_flag = 'N' then '결제완료'
+				        END ) status
+                        ,
+                        d.member_gubun
+        
+				       FROM BUY_LESSON A
+				       LEFT JOIN LESSON B ON
+				       (A.LESSON_SEQ = B.LESSON_SEQ)
+				       LEFT JOIN LESSON_CATEGORY C ON
+				       (B.LESSON_CATEGORY_SEQ = C.LESSON_CATEGORY_SEQ)
+				       left join member d on
+				       (d.member_id = b.up_user_id)
+				WHERE A.IN_USER_ID =  #{memberId}
+				)
+				)
+				where rm between #{rowStart} and #{rowEnd}
+				order by in_date desc
+		    
+		    ]]>
+	</select>
+
+	
+	<!-- 민정 - 페이징용구매강의 전체 개수 cnt -->
+    <select id="selectbuyLessonCnt" parameterType="Criteria" resultType="int">
+        <![CDATA[
+        select 
+		count(*)
+		from
+		(
+		select A.BUY_LESSON_SEQ,
+				       A.LESSON_SEQ,
+		               a.in_date,
+		               a.up_user_id,
+		               B.LESSON_MONTH,
+		               TRUNC(TO_DATE(A.LESSON_FINISH_DATE) - SYSDATE)  REMAINMONTH,
+				       CASE WHEN LENGTH(B.LESSON_TITLE) > 20 THEN SUBSTR(B.LESSON_TITLE, 0, 20) || '...' ELSE B.LESSON_TITLE END AS lesson_TITLE,
+				       C.LESSON_CATEGORY_NAME,
+				       (case
+				        when LESSON_REFUND_FLAG = 'Y' then '환불완료'
+				        when SYSDATE - TO_DATE(lesson_finish_date)  > 0 and lesson_refund_flag = 'N' then '기간만료'
+				        when lesson_click_FLAG = 'Y' and SYSDATE - TO_DATE(lesson_finish_date)  < 0 and lesson_refund_flag='N' then '수강진행'
+				        when lesson_click_flag = 'N' and lesson_refund_flag = 'N' then '결제완료'
+				        END ) status
+				       FROM BUY_LESSON A
+				       LEFT JOIN LESSON B ON
+				       (A.LESSON_SEQ = B.LESSON_SEQ)
+				       LEFT JOIN LESSON_CATEGORY C ON
+				       (B.LESSON_CATEGORY_SEQ = C.LESSON_CATEGORY_SEQ)
+				WHERE A.IN_USER_ID = #{memberId}
+		)
+		order by in_date desc
+        ]]>
+    </select>
+    
+    
+    
+    <!-- 민정 - 구매한강의 결제상세 -->
+	<select id="selectMyLessonPayDetail" parameterType="BuyLessonPayVO" resultType="egovMap">
+		select a.in_user_id buyer,
+		       a.buy_lesson_seq,
+		       a.lesson_seq,
+		       b.lesson_title,
+		       b.lesson_price,
+		       a.lesson_finish_date,
+		       a.in_date payDate,
+		       a.lesson_refund_flag,
+		       a.lesson_click_flag,
+		       a.lesson_click_date,
+		       c.file_save_name,
+		       c.file_path
+		       from buy_lesson a
+		    left join lesson b on
+		    (a.lesson_seq = b.lesson_seq)
+		    left join attach_file c on
+		    (b.file_seq = c.file_seq)
+		where  a.buy_lesson_seq = #{buyLessonSeq}
+	</select>
+	
+	
+	<!-- 민정 - 환불가능한지 체킹 -->
+	<select id="selectcheckRefundFlag" resultType="int" parameterType="hashmap">
+		<![CDATA[
+	    SELECT COUNT(*)
+		FROM BUY_LESSON
+		WHERE IN_USER_ID = #{memberId}
+		 AND LESSON_SEQ= #{lessonSeq}
+		AND LESSON_REFUND_FLAG = 'N'
+		AND (lesson_click_date is null or (SYSDATE - TO_DATE(lesson_click_date,'YYYY/MM/DD') < 7)) 
+		]]>
+	</select>
+	
+	<!-- 민정 -  마이페이지 환불여부 변경 -->
+	<update id="updBuyLessonRefundFlag" parameterType="hashmap" >
+        update buy_lesson
+			set lesson_refund_flag = 'Y'
+		where buy_lesson_seq= #{buyLessonSeq}
+		and lesson_seq= #{lessonSeq}
+		and in_user_id =  #{memberId}
+
+	</update>
+
+<!-- 	관리자인지 회원인지 구분 -->
+	<select id="checkMember" resultType="int">
+	    SELECT COUNT(*)
+		    FROM MEMBER
+		WHERE MEMBER_GUBUN='A'
+		AND MEMBER_ID = #{memberId}
+	</select>
+	
+	<select id="selectBuyTicketList" parameterType="Criteria" resultType="egovMap">
+		select *
+		from
+		(
+		select rownum as rn, buy_ticket_seq, ticket_remain,ticket_refund_flag, 
+		to_char(in_date,'YYYY-MM-DD') as in_date, ticket_avail_flag,ticket_name
+		from
+		(
+		select *
+		from buy_ticket a, ticket_category b
+		where in_user_id = #{memberId}
+		and a.ticket_category_seq = b.ticket_category_seq(+)
+		<if test="selDate != null and selDate != '' ">
+		and to_char(in_date,'YYYYMMDD') = #{selDate}
+		</if>
+		<if test="selTicketName != null and selTicketName != '' ">
+		and b.ticket_name = #{selTicketName}
+		</if>
+		order by in_date desc
+		)
+		)
+		where rn between #{rowStart} and #{rowEnd}
+	</select>
+	
+	<select id="selectBuyTicketCnt" parameterType="Criteria" resultType="int">
+		
+		select count(*)
+		from buy_ticket a, ticket_category b
+		where in_user_id = #{memberId}
+		and a.ticket_category_seq = b.ticket_category_seq(+)
+		<if test="selDate != null and selDate != '' ">
+		and to_char(in_date,'YYYYMMDD') = #{selDate}
+		</if>
+		<if test="selTicketName != null and selTicketName != '' ">
+		and b.ticket_name = #{selTicketName}
+		</if>
+		order by in_date desc
+		
+	</select>
+
+	<select id="selectUseTicketList" parameterType="Criteria" resultType="egovMap">
+		select *
+		from
+		(
+		select rownum as rn, chatting_seq, chat_profile_seq, in_date, chat_profile_id,member_name
+		from
+		(
+		select a.chatting_seq, a.chat_profile_seq, to_char(a.in_date,'yyyy-mm-dd') as in_date, b.chat_profile_id, c.member_name
+		from chatting a, chat_profile b, member c
+		where chatting_member_id = #{memberId}
+		and a.chat_profile_seq = b.chat_profile_seq(+) 
+		and b.chat_profile_id = c.member_id(+)
+		<if test="selDate != null and selDate != '' ">
+		and to_char(a.in_date,'YYYYMMDD') = #{selDate}
+		</if>
+		<if test="keyword != null and keyword != '' ">
+		and c.member_name like '%'||#{keyword}||'%'
+		</if>
+		order by in_date desc
+		)
+		)
+		where rn between 1 and 10
+	
+	</select>
+	
+	<select id="selectUseTicketCnt" parameterType="Criteria" resultType="int">
+		select count(*)
+		from chatting a, chat_profile b, member c
+		where chatting_member_id = '10'
+		and a.chat_profile_seq = b.chat_profile_seq(+) 
+		and b.chat_profile_id = c.member_id(+)
+		<if test="selDate != null and selDate != '' ">
+		and to_char(a.in_date,'YYYYMMDD') = #{selDate}
+		</if>
+		<if test="keyword != null and keyword != '' ">
+		and c.member_name like '%'||#{keyword}||'%'
+		</if>
+	</select>
+</mapper>

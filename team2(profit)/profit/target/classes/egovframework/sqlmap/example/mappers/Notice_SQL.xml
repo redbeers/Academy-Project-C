@@ -1,0 +1,316 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="kr.or.profit.mapper.NoticeMapper">
+
+	<resultMap id="qnaVO" type="kr.or.profit.vo.QnaVO">
+		<result property="communitySeq" column="COMMUNITY_SEQ"/>
+		<result property="commonSeq" column="COMMON_SEQ"/>
+		<result property="communityCategorySeq" column="COMMUNITY_CATEGORY_SEQ"/>
+		<result property="fileSeq" column="FILE_SEQ"/>
+		<result property="commonTitle" column="COMMON_TITLE"/>
+		<result property="commonContent" column="COMMON_CONTENT"/>
+		<result property="commonHit" column="COMMON_HIT"/>
+		<result property="commonDelFlag" column="COMMON_DEL_FLAG"/>
+		<result property="inUserId" column="IN_USER_ID"/>
+		<result property="inDate" column="IN_DATE"/>
+		<result property="upUserId" column="UP_USER_ID"/>
+		<result property="upDate" column="UP_DATE"/>
+	</resultMap>
+
+<!--  페이징 처리 -->
+	<select id="selectBoardCnt" parameterType="Criteria" resultType="int">
+	    SELECT
+		    COUNT(*)
+		FROM
+		    COMMUNITY A
+
+		WHERE
+		    A.COMMON_DEL_FLAG = 'N'
+		AND
+		    A.COMMON_SEQ = '7'
+		AND
+		    1=1
+	</select>
+
+<!-- 	글목록 -->
+	<select id="noticeList" parameterType="Criteria" resultType="egovMap">
+		SELECT *
+		FROM
+		(
+		SELECT ROWNUM AS RN, COMMUNITY_SEQ, COMMON_TITLE, IN_USER_ID, TO_CHAR(IN_DATE, 'YYYY-MM-DD') IN_DATE, COMMON_HIT, FILE_SEQ, FILE_CNT
+		FROM
+		(
+		SELECT
+		        TT.COMMUNITY_SEQ, TT.COMMON_TITLE, TT.IN_USER_ID, TT.IN_DATE,TT.COMMON_HIT, TT.FILE_SEQ, COUNT(FILE_PATH) AS FILE_CNT
+		       FROM
+		          (
+		             SELECT A.COMMUNITY_SEQ,A.COMMUNITY_CATEGORY_SEQ,A.FILE_SEQ,
+		                   CASE WHEN LENGTH(A.COMMON_TITLE) > 12 THEN SUBSTR(A.COMMON_TITLE, 0, 12) || '...' ELSE A.COMMON_TITLE END AS COMMON_TITLE,
+		                   A.COMMON_CONTENT,
+		                   A.COMMON_HIT,
+		                   A.IN_USER_ID,
+		                   A.IN_DATE,
+		                   B.FILE_PATH,
+		                      B.FILE_REAL_NAME,
+		                   NVL(D.BOARD_REPLY,0) AS BOARD_REPLY,
+		                   E.COMMUNITY_CATEGORY_NAME
+		             FROM
+		                   COMMUNITY A
+		                   LEFT JOIN
+		                   ATTACH_FILE B ON
+		                   (A.FILE_SEQ = B.FILE_SEQ)
+		                   LEFT JOIN
+		                   (
+		                   SELECT COMMUNITY_SEQ,
+		                   COUNT(*) AS BOARD_REPLY
+		                   FROM REPLY
+		                   WHERE REPLY_DEL_FLAG='N'
+		                   GROUP BY
+		                   COMMUNITY_SEQ
+		                   ) D ON
+		                   (A.COMMUNITY_SEQ = D.COMMUNITY_SEQ)
+		                   LEFT JOIN
+		                   COMMUNITY_CATEGORY E ON
+		                   (A.COMMUNITY_CATEGORY_SEQ =
+		                   E.COMMUNITY_CATEGORY_SEQ)
+		             WHERE
+		                   A.COMMON_SEQ = 7 AND A.COMMON_DEL_FLAG = 'N'
+		                   AND 1=1
+		         ) TT
+		      GROUP BY
+		        TT.COMMUNITY_SEQ, TT.COMMON_TITLE, TT.IN_USER_ID, TT.IN_DATE,TT.COMMON_HIT, TT.FILE_SEQ
+		        ORDER BY IN_DATE DESC
+		)
+		)
+		WHERE RN BETWEEN #{rowStart} AND #{rowEnd}
+	</select>
+
+<!-- 	글 상세보기 -->
+	<select id="noticeDetail" resultType="egovMap">
+		SELECT
+		    A.COMMUNITY_SEQ,
+		    A.COMMON_SEQ,
+		    TO_CHAR(A.COMMON_CONTENT) COMMON_CONTENT,
+		    A.COMMON_TITLE,
+		    A.COMMON_HIT,
+		    A.COMMON_DEL_FLAG,
+		    A.IN_USER_ID,
+		    TO_CHAR(A.IN_DATE, 'YYYY-MM-DD') IN_DATE,
+		    A.UP_USER_ID,
+		    TO_CHAR(A.UP_DATE, 'YYYY-MM-DD') IN_DATE
+
+		FROM
+		    COMMUNITY A
+		WHERE
+		    COMMON_SEQ = '7'
+		AND
+			COMMUNITY_SEQ = #{communitySeq}
+	</select>
+
+<!-- 	글 등록 -->
+	<insert id="noticeInsert" parameterType="hashMap">
+		INSERT INTO COMMUNITY
+			(
+				COMMUNITY_SEQ,
+                COMMON_SEQ,
+                COMMON_TITLE,
+                COMMON_CONTENT,
+                <if test="tumnalil_img != null and tumnalil_img != ''">
+	                FILE_SEQ,
+				</if>
+	                COMMON_DEL_FLAG,
+                COMMON_HIT,
+                IN_USER_ID,
+                IN_DATE,
+                UP_USER_ID,
+                UP_DATE	)
+		VALUES
+			(
+				(SELECT
+			        NVL(MAX(TO_NUMBER(COMMUNITY_SEQ)),0) AS COMMUNITY_SEQ
+			    FROM
+			        COMMUNITY)+1,
+				'7',
+				#{commonTitle},
+				#{commonContent},
+				<if test="tumnalil_img != null and tumnalil_img != ''">
+					#{tumnalil_img},
+				</if>
+				'N',
+				'0',
+				#{memberId},
+				SYSDATE,
+				#{memberId},
+				SYSDATE
+						)
+	</insert>
+
+<!-- 	글수정 -->
+	<update id="noticeModUpdate" parameterType="hashMap" >
+		UPDATE
+		    COMMUNITY
+		SET
+			FILE_SEQ 		= #{fileSeq},
+		    COMMON_TITLE    = #{commonTitle},
+		    COMMON_CONTENT  = #{commonContent},
+		    UP_DATE         = SYSDATE
+		WHERE
+		    COMMUNITY_SEQ = #{communitySeq}
+	</update>
+
+<!-- 	글 삭제 -->
+	<update id="noticeDelete" parameterType="hashMap" >
+		UPDATE
+		    COMMUNITY
+		SET
+		    COMMON_DEL_FLAG = 'Y'
+		WHERE
+		    COMMUNITY_SEQ = #{communitySeq}
+	</update>
+
+<!-- 	조회수 증가 -->
+	<update id="noticeCommonHit" parameterType="hashMap">
+		UPDATE
+		    COMMUNITY
+		SET
+		    COMMON_HIT = COMMON_HIT+ 1
+		WHERE
+		    COMMUNITY_SEQ = #{communitySeq}
+	</update>
+
+<!-- 	파일업로드 -->
+	<insert id="noticeFileUpload" parameterType="hashMap">
+		INSERT INTO ATTACH_FILE
+		    (
+		    FILE_SEQ,
+			FILE_DETAIL_SEQ,
+			FILE_REAL_NAME,
+			FILE_SAVE_NAME,
+			FILE_PATH,
+		    IN_USER_ID,
+		    IN_DATE,
+		    UP_USER_ID,
+		    UP_DATE
+		    )
+		values
+		    (
+
+		    (SELECT
+		        NVL(MAX(TO_NUMBER(FILE_SEQ)),0) AS FILE_SEQ
+		    FROM
+		        ATTACH_FILE)<if test="cnt == null">+1 </if>,
+		    #{fileDetailSeq},
+		    #{fileRealName},
+		    #{filesavename},
+		    #{imgFile},
+		    #{memberId},
+		    SYSDATE,
+		    #{memberId},
+		    SYSDATE
+		    )
+
+	</insert>
+
+<!-- 	파일번호확인 -->
+	<select id="noticeFileCnt" resultType="String">
+		SELECT
+		     NVL(MAX(TO_NUMBER(FILE_SEQ)),0)+1 AS FILE_SEQ
+		FROM
+		    ATTACH_FILE
+
+	</select>
+
+
+	<!-- 	파일 다운로드 -->
+	<select id="qnaProfileDownload" resultType="egovMap">
+		SELECT
+		    B.FILE_REAL_NAME,
+			b.FILE_SAVE_NAME,
+		    B.FILE_PATH
+		FROM
+		    COMMUNITY A
+		    LEFT JOIN ATTACH_FILE B ON (A.FILE_SEQ = B.FILE_SEQ)
+		WHERE
+		    A.COMMUNITY_SEQ = #{communitySeq}
+		 AND
+            b.FILE_DETAIL_SEQ = #{fileDetailSeq}
+	</select>
+
+<!-- 	파일 삭제 -->
+	<delete id="noticeModDelFile" parameterType="hashMap">
+		DELETE FROM
+		    ATTACH_FILE
+		WHERE
+		   FILE_SEQ = #{fileSeq}
+		AND
+		    FILE_DETAIL_SEQ = #{fileDetailSeq}
+	</delete>
+
+
+<!-- 	파일 리스트 -->
+	<select id="noticeDetailFile" parameterType="hashMap" resultType="egovMap">
+		SELECT
+		    B.FILE_SEQ,
+		    B.FILE_DETAIL_SEQ,
+		    B.FILE_REAL_NAME
+		FROM
+		    COMMUNITY A
+		    LEFT JOIN ATTACH_FILE B ON (A.FILE_SEQ = B.FILE_SEQ)
+		WHERE
+		    A.COMMUNITY_SEQ = #{communitySeq}
+		ORDER BY B.FILE_DETAIL_SEQ DESC
+	</select>
+
+<!-- 	파일 수정 -->
+	<insert id="noticeFileUploadMod" parameterType="hashMap">
+		INSERT INTO ATTACH_FILE
+		    (
+		    FILE_SEQ,
+			FILE_DETAIL_SEQ,
+			FILE_REAL_NAME,
+			FILE_SAVE_NAME,
+			FILE_PATH,
+		    IN_USER_ID,
+		    IN_DATE,
+		    UP_USER_ID,
+		    UP_DATE
+		    )
+		values
+		    (
+			<choose>
+			    <when test="fileSeq != 0">
+			         #{fileSeq},
+			    </when>
+			    <otherwise>
+			        (SELECT
+			        	NVL(MAX(TO_NUMBER(FILE_SEQ)),0) AS FILE_SEQ
+			        FROM
+			        	ATTACH_FILE)+1,
+			    </otherwise>
+			</choose>
+		    (SELECT
+		    	NVL(MAX(TO_NUMBER(FILE_DETAIL_SEQ)),0) AS FILE_DETAIL_SEQ
+		    FROM
+		    	ATTACH_FILE)+1,
+		    #{fileRealName},
+		    #{filesavename},
+		    #{imgFile},
+		    #{memberId},
+		    SYSDATE,
+		    #{memberId},
+		    SYSDATE
+		    )
+
+	</insert>
+
+<!-- 	파일 번호만 넣기 -->
+	<update id="fileSeq" parameterType="hashMap">
+	    UPDATE
+		    COMMUNITY
+		SET
+		    FILE_SEQ = #{fileSeq}
+		WHERE
+		    COMMUNITY_SEQ = #{communitySeq}
+	</update>
+
+</mapper>
