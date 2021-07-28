@@ -35,8 +35,8 @@
         <![CDATA[
         insert into MEMBER(
         	MEMBER_ID, MEMBER_PWD, MEMBER_NAME, MEMBER_NICKNAME,
-        	MEMBER_EMAIL, MEMBER_GUBUN, MEMBER_ROUTE, FILE_SEQ,
-        	IN_USER_ID, IN_DATE, UP_USER_ID, UP_DATE
+        	MEMBER_EMAIL, MEMBER_GUBUN, MEMBER_ROUTE, FILE_SEQ
+        	
         ) values (
         	#{memberId, jdbcType=VARCHAR}, 
         	#{memberPwd, jdbcType=VARCHAR}, 
@@ -45,25 +45,15 @@
         	#{memberEmail, jdbcType=VARCHAR}, 
         	'U', 
         	'K', 
-        	'1',
-        	#{memberId}, 
-        	sysdate,
-        	#{memberId}, 
-        	sysdate
+        	123
         	
         )
         ]]>
 	</insert>
-	
-	<!-- 카카오 회원 구분 가져오기 -->
-	<select id="selectKakaoGubun" parameterType="String" resultType="MemberVO">
-	    select member_gubun, member_nickname
-	    from member
-	    where member_id = #{memberId}
-	</select>
 
 	<!-- 이미 카카오 로그인 회원인지 아닌지 검사 -->
-	<select id="kakaoSelectById" parameterType="String" resultType="int">
+	<select id="kakaoSelectById" parameterType="String"
+		resultType="int">
 		select count(*)
 		from MEMBER
 		where MEMBER_ID = #{memberId} and

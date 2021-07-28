@@ -280,78 +280,34 @@
 <!-- 민정 - 회원이 구매한 강의 list -->
 	<select id="myBuyLessonList" parameterType="Criteria" resultType="egovMap">
 	    <![CDATA[
-		    select rm,  BUY_LESSON_SEQ, LESSON_SEQ, LESSON_MONTH,
-				REMAINMONTH, lesson_TITLE, LESSON_CATEGORY_NAME, status, in_date,up_user_id,member_gubun
-				from
-				(
-				select rownum as rm, BUY_LESSON_SEQ, LESSON_SEQ, LESSON_MONTH,
-				REMAINMONTH, lesson_TITLE, LESSON_CATEGORY_NAME, status, in_date,up_user_id,member_gubun
-				from
-				(
-				select A.BUY_LESSON_SEQ,
-				       A.LESSON_SEQ,
-		               a.in_date,
-		               b.up_user_id,
-		               B.LESSON_MONTH,
-		               TRUNC(TO_DATE(A.LESSON_FINISH_DATE) - SYSDATE)  REMAINMONTH,
-				       CASE WHEN LENGTH(B.LESSON_TITLE) > 20 THEN SUBSTR(B.LESSON_TITLE, 0, 20) || '...' ELSE B.LESSON_TITLE END AS lesson_TITLE,
-				       C.LESSON_CATEGORY_NAME,
-				       (case
-				        when LESSON_REFUND_FLAG = 'Y' then '환불완료'
-				        when SYSDATE - TO_DATE(lesson_finish_date)  > 0 and lesson_refund_flag = 'N' then '기간만료'
-				        when lesson_click_FLAG = 'Y' and SYSDATE - TO_DATE(lesson_finish_date)  < 0 and lesson_refund_flag='N' then '수강진행'
-				        when lesson_click_flag = 'N' and lesson_refund_flag = 'N' then '결제완료'
-				        END ) status
-                        ,
-                        d.member_gubun
-        
-				       FROM BUY_LESSON A
-				       LEFT JOIN LESSON B ON
-				       (A.LESSON_SEQ = B.LESSON_SEQ)
-				       LEFT JOIN LESSON_CATEGORY C ON
-				       (B.LESSON_CATEGORY_SEQ = C.LESSON_CATEGORY_SEQ)
-				       left join member d on
-				       (d.member_id = b.up_user_id)
-				WHERE A.IN_USER_ID =  #{memberId}
-				)
-				)
-				where rm between #{rowStart} and #{rowEnd}
-				order by in_date desc
-		    
+		SELECT A.BUY_LESSON_SEQ,
+		       A.LESSON_SEQ,
+		       B.LESSON_MONTH,
+		       CASE WHEN LENGTH(B.LESSON_TITLE) > 20 THEN SUBSTR(B.LESSON_TITLE, 0, 20) || '...' ELSE B.LESSON_TITLE END AS lesson_TITLE,
+		       C.LESSON_CATEGORY_NAME,
+		       (case
+		        when LESSON_REFUND_FLAG = 'Y' then '환불완료'
+		        when SYSDATE - TO_DATE(lesson_finish_date)  > 0 and lesson_refund_flag = 'N' then '기간만료'
+		        when lesson_click_FLAG = 'Y' and SYSDATE - TO_DATE(lesson_finish_date)  < 0 and lesson_refund_flag='N' then '수강진행'
+		        when lesson_click_flag = 'N' and lesson_refund_flag = 'N' then '결제완료'
+		        END ) status
+		       FROM BUY_LESSON A
+		       LEFT JOIN LESSON B ON
+		       (A.LESSON_SEQ = B.LESSON_SEQ)
+		       LEFT JOIN LESSON_CATEGORY C ON
+		       (B.LESSON_CATEGORY_SEQ = C.LESSON_CATEGORY_SEQ)
+		    WHERE A.IN_USER_ID = #{memberId}
+		    ORDER BY A.IN_DATE DESC
 		    ]]>
 	</select>
 
 	
 	<!-- 민정 - 페이징용구매강의 전체 개수 cnt -->
     <select id="selectbuyLessonCnt" parameterType="Criteria" resultType="int">
-        <![CDATA[
-        select 
-		count(*)
-		from
-		(
-		select A.BUY_LESSON_SEQ,
-				       A.LESSON_SEQ,
-		               a.in_date,
-		               a.up_user_id,
-		               B.LESSON_MONTH,
-		               TRUNC(TO_DATE(A.LESSON_FINISH_DATE) - SYSDATE)  REMAINMONTH,
-				       CASE WHEN LENGTH(B.LESSON_TITLE) > 20 THEN SUBSTR(B.LESSON_TITLE, 0, 20) || '...' ELSE B.LESSON_TITLE END AS lesson_TITLE,
-				       C.LESSON_CATEGORY_NAME,
-				       (case
-				        when LESSON_REFUND_FLAG = 'Y' then '환불완료'
-				        when SYSDATE - TO_DATE(lesson_finish_date)  > 0 and lesson_refund_flag = 'N' then '기간만료'
-				        when lesson_click_FLAG = 'Y' and SYSDATE - TO_DATE(lesson_finish_date)  < 0 and lesson_refund_flag='N' then '수강진행'
-				        when lesson_click_flag = 'N' and lesson_refund_flag = 'N' then '결제완료'
-				        END ) status
-				       FROM BUY_LESSON A
-				       LEFT JOIN LESSON B ON
-				       (A.LESSON_SEQ = B.LESSON_SEQ)
-				       LEFT JOIN LESSON_CATEGORY C ON
-				       (B.LESSON_CATEGORY_SEQ = C.LESSON_CATEGORY_SEQ)
-				WHERE A.IN_USER_ID = #{memberId}
-		)
-		order by in_date desc
-        ]]>
+        select count(*)
+		    from buy_lesson
+		where in_user_id= #{memberId}
+        
     </select>
     
     
@@ -401,90 +357,6 @@
 
 	</update>
 
-<!-- 	관리자인지 회원인지 구분 -->
-	<select id="checkMember" resultType="int">
-	    SELECT COUNT(*)
-		    FROM MEMBER
-		WHERE MEMBER_GUBUN='A'
-		AND MEMBER_ID = #{memberId}
-	</select>
-	
-	<select id="selectBuyTicketList" parameterType="Criteria" resultType="egovMap">
-		select *
-		from
-		(
-		select rownum as rn, buy_ticket_seq, ticket_remain,ticket_refund_flag, 
-		to_char(in_date,'YYYY-MM-DD') as in_date, ticket_avail_flag,ticket_name
-		from
-		(
-		select *
-		from buy_ticket a, ticket_category b
-		where in_user_id = #{memberId}
-		and a.ticket_category_seq = b.ticket_category_seq(+)
-		<if test="selDate != null and selDate != '' ">
-		and to_char(in_date,'YYYYMMDD') = #{selDate}
-		</if>
-		<if test="selTicketName != null and selTicketName != '' ">
-		and b.ticket_name = #{selTicketName}
-		</if>
-		order by in_date desc
-		)
-		)
-		where rn between #{rowStart} and #{rowEnd}
-	</select>
-	
-	<select id="selectBuyTicketCnt" parameterType="Criteria" resultType="int">
-		
-		select count(*)
-		from buy_ticket a, ticket_category b
-		where in_user_id = #{memberId}
-		and a.ticket_category_seq = b.ticket_category_seq(+)
-		<if test="selDate != null and selDate != '' ">
-		and to_char(in_date,'YYYYMMDD') = #{selDate}
-		</if>
-		<if test="selTicketName != null and selTicketName != '' ">
-		and b.ticket_name = #{selTicketName}
-		</if>
-		order by in_date desc
-		
-	</select>
 
-	<select id="selectUseTicketList" parameterType="Criteria" resultType="egovMap">
-		select *
-		from
-		(
-		select rownum as rn, chatting_seq, chat_profile_seq, in_date, chat_profile_id,member_name
-		from
-		(
-		select a.chatting_seq, a.chat_profile_seq, to_char(a.in_date,'yyyy-mm-dd') as in_date, b.chat_profile_id, c.member_name
-		from chatting a, chat_profile b, member c
-		where chatting_member_id = #{memberId}
-		and a.chat_profile_seq = b.chat_profile_seq(+) 
-		and b.chat_profile_id = c.member_id(+)
-		<if test="selDate != null and selDate != '' ">
-		and to_char(a.in_date,'YYYYMMDD') = #{selDate}
-		</if>
-		<if test="keyword != null and keyword != '' ">
-		and c.member_name like '%'||#{keyword}||'%'
-		</if>
-		order by in_date desc
-		)
-		)
-		where rn between 1 and 10
-	
-	</select>
-	
-	<select id="selectUseTicketCnt" parameterType="Criteria" resultType="int">
-		select count(*)
-		from chatting a, chat_profile b, member c
-		where chatting_member_id = '10'
-		and a.chat_profile_seq = b.chat_profile_seq(+) 
-		and b.chat_profile_id = c.member_id(+)
-		<if test="selDate != null and selDate != '' ">
-		and to_char(a.in_date,'YYYYMMDD') = #{selDate}
-		</if>
-		<if test="keyword != null and keyword != '' ">
-		and c.member_name like '%'||#{keyword}||'%'
-		</if>
-	</select>
+
 </mapper>

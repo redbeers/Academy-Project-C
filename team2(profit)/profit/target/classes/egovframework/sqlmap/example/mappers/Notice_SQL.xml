@@ -45,7 +45,7 @@
 		       FROM
 		          (
 		             SELECT A.COMMUNITY_SEQ,A.COMMUNITY_CATEGORY_SEQ,A.FILE_SEQ,
-		                   CASE WHEN LENGTH(A.COMMON_TITLE) > 12 THEN SUBSTR(A.COMMON_TITLE, 0, 12) || '...' ELSE A.COMMON_TITLE END AS COMMON_TITLE,
+		                   CASE WHEN LENGTH(A.COMMON_TITLE) > 15 THEN SUBSTR(A.COMMON_TITLE, 0, 15) || '...' ELSE A.COMMON_TITLE END AS COMMON_TITLE,
 		                   A.COMMON_CONTENT,
 		                   A.COMMON_HIT,
 		                   A.IN_USER_ID,

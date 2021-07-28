@@ -19,8 +19,5 @@
 		<typeAlias alias="Criteria" type="kr.or.profit.vo.Criteria"/>
 		<typeAlias alias="buyLessonVO" type="kr.or.profit.vo.BuyLessonVO"/>
 		<typeAlias alias="buyLessonPayVO" type="kr.or.profit.vo.BuyLessonPayVO"/>
-		<typeAlias alias="buyTicketVO" type="kr.or.profit.vo.BuyTicketVO"/>
-		<typeAlias alias="salesVO" type="kr.or.profit.vo.SalesVO"/>
-		<typeAlias alias="chattingVO" type="kr.or.profit.vo.ChattingVO"/>
     </typeAliases>
 </configuration>

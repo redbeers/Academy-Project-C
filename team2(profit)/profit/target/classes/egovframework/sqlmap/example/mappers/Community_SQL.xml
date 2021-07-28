@@ -582,11 +582,7 @@
 	<!-- 자유게시판 인기글 TOP5 조회 -->
 	<select id="bestBoardList" resultType="egovMap">
 	    <![CDATA[
-	    select *
-        from(
-        select rownum as rn, community_seq, cnt, common_title, in_date, file_seq, file_path
-        from
-        (SELECT D.COMMUNITY_SEQ, D.CNT, 
+	    SELECT D.RN, D.COMMUNITY_SEQ, D.CNT, 
 	    CASE 
 	    WHEN LENGTH(D.COMMON_TITLE) > 20 THEN SUBSTR(D.COMMON_TITLE, 0, 20) ||'...' 
 		ELSE D.COMMON_TITLE
@@ -594,49 +590,28 @@
 		D.IN_DATE, E.FILE_SEQ, E.FILE_PATH
 		FROM
 		(
-		SELECT B.COMMUNITY_SEQ, B.CNT, C.COMMON_TITLE,  C.FILE_SEQ, C.IN_DATE
+		SELECT B.RN, B.COMMUNITY_SEQ, B.CNT, C.COMMON_TITLE,  C.FILE_SEQ, C.IN_DATE
 		FROM
 		(
-		SELECT A.COMMUNITY_SEQ, A.CNT
+		SELECT ROWNUM AS RN, A.COMMUNITY_SEQ, A.CNT
 		FROM
 		(
 		SELECT COMMUNITY_SEQ,COUNT(*) AS CNT
 		FROM BOOKGOOD
-        where bookgood_gubun = 'G'
 		GROUP BY COMMUNITY_SEQ
 		ORDER BY CNT DESC
 		) A
+		WHERE ROWNUM <= 5
 		) B
-		INNER JOIN 
+		LEFT JOIN 
 		COMMUNITY C ON
-		(B.COMMUNITY_SEQ = C.COMMUNITY_SEQ and c.common_seq = 5)
+		(B.COMMUNITY_SEQ = C.COMMUNITY_SEQ)
 		) D
 		LEFT JOIN 
 		ATTACH_FILE E ON
 		(D.FILE_SEQ = E.FILE_SEQ)
 		ORDER BY CNT DESC
-        )
-        )
-        where rn <= 5
 	    ]]>
-	</select>
-	
-	<select id="selectReplyCnt" resultType="egovMap">
-	    SELECT 
-		count(*) as cnt
-		FROM
-		(
-		SELECT *
-		FROM REPLY
-		WHERE REPLY_DEL_FLAG='N'
-		START WITH REPLY_PARENT_SEQ IS NULL
-		CONNECT BY PRIOR REPLY_SEQ = REPLY_PARENT_SEQ
-		ORDER SIBLINGS BY IN_DATE DESC, REPLY_SEQ
-		) A
-		LEFT JOIN 
-		MEMBER B ON
-		(A.IN_USER_ID=B.MEMBER_ID)
-		WHERE COMMUNITY_SEQ = #{communitySeq}
 	</select>
 	
 </mapper>

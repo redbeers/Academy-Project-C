@@ -3,137 +3,6 @@
 
 <mapper namespace="kr.or.profit.mapper.AdminMemberMapper">
 
-    <!-- 회원관리 리스트 -->
-    <select id="selectAdminMemberList" parameterType="Criteria" resultType="MemberVO">
-        select	tt.*
-        from
-        (
-        select  rownum as rm, tbl.*
-        from
-        (
-		select  member_id, 
-		        member_name, 
-		        case when member_gender = 'F' then '여' else '남' end as member_gender, 
-		        member_gubun, 
-		        in_date,
-		        case when member_id in (select member_id from blacklist) then '블랙리스트' else '정상회원' end as blacklist_flag
-		from member
-		where member_gubun != 'A'
-			<if test="selGubun != null and selGubun != '' ">
-	            <choose>
-		            <when test='selGubun.equals("U")'>
-		                and member_gubun = 'U'
-		            </when>
-		            <when test='selGubun.equals("T")'>
-		                and member_gubun = 'T'
-		            </when>
-	            </choose>
-            </if>
-            <if test="selStatus != null and selStatus != '' ">
-	            <choose>
-		            <when test='selStatus.equals("B")'>
-		                and member_id in (select member_id from blacklist)
-		            </when>
-		            <when test='selStatus.equals("N")'>
-		                and member_id not in (select member_id from blacklist)
-		            </when>
-	            </choose>
-            </if>
-            <if test="selIdentity != null and selIdentity != '' ">
-			    <choose>
-			        <when test='selIdentity.equals("이름")'>
-			            and member_name like '%' || #{searchKeyword} || '%'
-			        </when>
-			        <otherwise>
-			            and member_id like '%' || #{searchKeyword} || '%'
-			        </otherwise>
-			    </choose>
-			</if>
-		order by in_date desc
-		) tbl
-		) tt
-		where tt.rm between #{rowStart} and #{rowEnd}
-    </select>
-
-    <!-- 회원관리 리스트 전체 개수 -->
-    <select id="selectMemberListCnt" parameterType="Criteria" resultType="int">
-        select count(*)
-        from member
-		where member_gubun != 'A'
-			<if test="selGubun != null and selGubun != '' ">
-	            <choose>
-		            <when test='selGubun.equals("U")'>
-		                and member_gubun = 'U'
-		            </when>
-		            <when test='selGubun.equals("T")'>
-		                and member_gubun = 'T'
-		            </when>
-	            </choose>
-            </if>
-            <if test="selStatus != null and selStatus != '' ">
-	            <choose>
-		            <when test='selStatus.equals("B")'>
-		                and member_id in (select member_id from blacklist)
-		            </when>
-		            <when test='selStatus.equals("N")'>
-		                and member_id not in (select member_id from blacklist)
-		            </when>
-	            </choose>
-            </if>
-            <if test="selIdentity != null and selIdentity != '' ">
-			    <choose>
-			        <when test='selIdentity.equals("이름")'>
-			            and member_name like '%' || #{searchKeyword} || '%'
-			        </when>
-			        <otherwise>
-			            and member_id like '%' || #{searchKeyword} || '%'
-			        </otherwise>
-			    </choose>
-			</if>
-		order by in_date desc
-    </select>
-    
-    <!-- 모달 -->
-    <select id="adminMemberDetail" parameterType="String" resultType="MemberVO">
-        select  m.member_id, 
-		        m.member_name, 
-		        m.member_nickname,
-		        substr(m.member_mobile,0,3)||'-'||substr(m.member_mobile,4,4)||'-'||substr(m.member_mobile,8,4) as member_mobile,
-		        m.member_email,
-		        case when m.member_route = 'U' then '홈페이지 회원가입' else '카카오 회원가입' end as member_route,
-		        case when m.member_gender = 'F' then '여성' else '남성' end as member_gender, 
-		        case when m.member_gubun = 'U' then '일반회원' else '트레이너' end as member_gubun, 
-		        m.in_date,
-		        case when m.member_id in (select member_id from blacklist) then '블랙리스트' else '정상회원' end as blacklist_flag,
-		        b.blacklist_reason,
-		        b.in_date as b_date
-		from member m
-		left outer join blacklist b
-		on (m.member_id = b.member_id)
-		where m.member_id = #{memberId}
-    </select>
-    
-    <!-- 블랙리스트에 추가 -->
-    <insert id="insertBlacklist" parameterType="MemberVO">
-        insert into blacklist(blacklist_seq, member_id, blacklist_reason,in_user_id, in_date,up_user_id, up_date )
-        values 
-        (
-        	(select nvl(max(to_number(blacklist_seq)),0)+1 from blacklist),
-        	#{memberId},
-        	#{blacklistReason},
-        	(select member_id from member where member_gubun = 'A'),
-        	sysdate,
-        	(select member_id from member where member_gubun = 'A'),
-        	sysdate
-        )
-    </insert>
-    
-    <!-- 블랙리스트 삭제 -->
-    <delete id="deleteBlacklist" parameterType="String">
-        delete from blacklist where member_id = #{memberId}
-    </delete>
-    
-    
     <!-- 트레이너 프로세스 디테일 -->
     <select id="selectProcessDetailBySeq" parameterType="String" resultType="ProcessVO">
         select  p.process_seq, p.member_id, p.file_seq, p.trainer_award, p.trainer_career, 
@@ -312,10 +181,10 @@
 						<if test="selIdentity != null and selIdentity != '' ">
 						    <choose>
 						        <when test='selIdentity.equals("이름")'>
-						            and member_id like '%' || #{searchKeyword} || '%'
+						            and member_id = #{searchKeyword}
 						        </when>
 						        <otherwise>
-						            and (select member_name from member where process.member_id = member_id) like '%' || #{searchKeyword} || '%'
+						            and (select member_name from member where process.member_id = member_id) = #{searchKeyword}
 						        </otherwise>
 						    </choose>
 						</if>
@@ -348,10 +217,10 @@
 				<if test="selIdentity != null and selDate != '' ">
 				    <choose>
 				        <when test='selIdentity.equals("이름")'>
-				            and member_id like '%' || #{searchKeyword} || '%'
+				            and member_id = #{searchKeyword}
 				        </when>
 				        <otherwise>
-				            and (select member_name from member where process.member_id = member_id) like '%' || #{searchKeyword} || '%'
+				            and (select member_name from member where process.member_id = member_id) = #{searchKeyword}
 				        </otherwise>
 				    </choose>
 				</if>
@@ -365,6 +234,22 @@
 		    up_date = sysdate
 		where process_seq = #{processSeq}
     </update>
+ 	
+ 	
+ 	
+ 	
+ 	
+ 	
+ 	
+ 	
+ 	
+ 	
+ 	
+ 	
+ 	
+ 	
+ 	
+ 	
  	
  	
 </mapper>
